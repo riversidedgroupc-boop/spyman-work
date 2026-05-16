@@ -9,6 +9,7 @@ Supports three operating modes:
 
 from __future__ import annotations
 
+import hashlib
 import time
 from pathlib import Path
 from typing import Any
@@ -82,16 +83,18 @@ class EfficientADRunner(BaseRunner):
             return
 
         try:
-            from anomalib.models import EfficientAd
-
-            _log.info("anomalib EfficientAD available (model loading deferred)")
+            from anomalib.models import EfficientAd  # noqa: F401
         except Exception:
             _log.warning(
                 "Failed to import anomalib EfficientAD. Falling back to mock mode."
             )
             self.mode = "mock"
+            self._is_loaded = True
+            return
 
-        self._is_loaded = True
+        raise NotImplementedError(
+            "Real EfficientAD inference is not implemented yet. Use import or mock mode."
+        )
 
     def _load_imported_results(self) -> None:
         """Parse pre-computed anomaly scores from a CSV file."""
@@ -153,7 +156,8 @@ class EfficientADRunner(BaseRunner):
 
         # ---- mock mode ---------------------------------------------------------
         if self.mode == "mock":
-            seed = hash(img_path_str) % (2**31)
+            digest = hashlib.sha256(img_path_str.encode("utf-8")).hexdigest()
+            seed = int(digest[:16], 16)
             rng = _random_mod.Random(seed)
             anomaly_score = round(rng.uniform(0.1, 0.95), 4)
             elapsed = (time.perf_counter() - t0) * 1000.0 + rng.uniform(10.0, 50.0)
@@ -167,14 +171,8 @@ class EfficientADRunner(BaseRunner):
                 runtime_ms=elapsed,
             )
 
-        # ---- real mode (placeholder) -------------------------------------------
-        elapsed = (time.perf_counter() - t0) * 1000.0
-        return UnifiedPrediction(
-            image_path=img_path_str,
-            model_name="efficientad",
-            anomaly=AnomalyResult(image_score=0.0, threshold=self.score_threshold),
-            runtime_ms=elapsed,
-            extra={"warning": "Real EfficientAD inference not yet implemented"},
+        raise NotImplementedError(
+            "Real EfficientAD inference is not implemented yet. Use import or mock mode."
         )
 
     # -------------------------------------------------------------- predict_batch

@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.utils.config_loader import ConfigLoader
 from src.utils.file_utils import collect_images, ensure_dir
-from src.utils.image_utils import load_image_rgb
+from src.utils.image_utils import get_image_size, load_image_rgb
 from src.utils.logger import setup_logger
 from src.utils.timer import BatchTimer
 
@@ -61,6 +61,8 @@ from src.visualization.charts import (
     create_confusion_matrix_chart, create_metrics_bar_chart,
     create_strategy_comparison_chart,
 )
+
+from src.postprocess.candidate_builder import build_defect_candidates
 
 from src.reports.excel_report import ExcelReport
 
@@ -107,6 +109,41 @@ def init_config() -> ConfigLoader:
         )
     return st.session_state.config_loader
 
+
+def _pixel_size_from_config() -> tuple[float, float]:
+    """Read pixel size from dataset config, falling back to 0.01 mm/px."""
+    try:
+        dataset_cfg = init_config().load("dataset")
+        pixel_cfg = dataset_cfg.get("pixel_size_mm", {})
+        return float(pixel_cfg.get("x", 0.01)), float(pixel_cfg.get("y", 0.01))
+    except Exception:
+        return 0.01, 0.01
+
+
+def build_candidates_for_image(
+    image_path: str | Path,
+    yolo_result: UnifiedPrediction | None = None,
+    patchcore_result: UnifiedPrediction | None = None,
+    efficientad_result: UnifiedPrediction | None = None,
+    fastflow_result: UnifiedPrediction | None = None,
+    opencv_result: UnifiedPrediction | None = None,
+):
+    """Build feature-enriched candidates for rule-based fusion."""
+    try:
+        width, height = get_image_size(image_path)
+    except Exception:
+        width, height = 640, 640
+
+    return build_defect_candidates(
+        yolo_result=yolo_result,
+        patchcore_result=patchcore_result,
+        efficientad_result=efficientad_result,
+        fastflow_result=fastflow_result,
+        opencv_result=opencv_result,
+        image_width=width,
+        image_height=height,
+        pixel_size_mm=_pixel_size_from_config(),
+    )
 
 def load_all_runners(models_cfg: dict) -> dict:
     """Load all enabled model runners. Returns dict of runner_name -> runner."""
@@ -592,6 +629,14 @@ with tab3:
                     # Fusion
                     rule_engine = st.session_state.rule_engine
                     if rule_engine:
+                        candidates = build_candidates_for_image(
+                            image_path,
+                            yolo_result=results.get("yolo"),
+                            patchcore_result=results.get("patchcore"),
+                            efficientad_result=results.get("efficientad"),
+                            fastflow_result=results.get("fastflow"),
+                            opencv_result=results.get("opencv"),
+                        )
                         t0 = time.perf_counter()
                         fusion = rule_engine.decide(
                             image_path=image_path,
@@ -601,6 +646,7 @@ with tab3:
                             efficientad_result=results.get("efficientad"),
                             fastflow_result=results.get("fastflow"),
                             opencv_result=results.get("opencv"),
+                            candidates=candidates,
                         )
                         fusion.runtime_ms = (time.perf_counter() - t0) * 1000
                         results["fusion"] = fusion  # type: ignore[assignment]
@@ -789,6 +835,14 @@ with tab4:
 
                     # Fusion
                     if st.session_state.rule_engine:
+                        candidates = build_candidates_for_image(
+                            rec.image_path,
+                            yolo_result=yolo_result,
+                            patchcore_result=patchcore_result,
+                            efficientad_result=efficientad_result,
+                            fastflow_result=fastflow_result,
+                            opencv_result=opencv_result,
+                        )
                         t0 = time.perf_counter()
                         fusion = st.session_state.rule_engine.decide(
                             image_path=rec.image_path,
@@ -798,6 +852,7 @@ with tab4:
                             efficientad_result=efficientad_result,
                             fastflow_result=fastflow_result,
                             opencv_result=opencv_result,
+                            candidates=candidates,
                         )
                         fusion.runtime_ms = (time.perf_counter() - t0) * 1000
                         rec.fusion_decision = fusion
@@ -968,6 +1023,14 @@ with tab5:
                             inf_times = []
 
                             for rec in annotated:
+                                candidates = build_candidates_for_image(
+                                    rec.image_path,
+                                    yolo_result=rec.yolo_result,
+                                    patchcore_result=rec.patchcore_result,
+                                    efficientad_result=rec.efficientad_result,
+                                    fastflow_result=rec.fastflow_result,
+                                    opencv_result=rec.opencv_result,
+                                )
                                 t0 = time.perf_counter()
                                 fusion = rule_engine.decide(
                                     image_path=rec.image_path,
@@ -977,6 +1040,7 @@ with tab5:
                                     efficientad_result=rec.efficientad_result,
                                     fastflow_result=rec.fastflow_result,
                                     opencv_result=rec.opencv_result,
+                                    candidates=candidates,
                                 )
                                 pred_decisions.append(fusion.final_decision.value)
                                 inf_times.append((time.perf_counter() - t0) * 1000)

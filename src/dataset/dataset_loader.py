@@ -9,7 +9,7 @@ from typing import Optional
 from src.dataset.annotation_parser import (
     find_label_file,
     has_label,
-    parse_yolo_annotation,
+    parse_yolo_annotation_normalized,
 )
 from src.dataset.label_schema import class_id_to_name, get_label_group
 from src.fusion.decision_types import BBoxPrediction, ImageRecord
@@ -58,9 +58,7 @@ class DatasetLoader:
         true_label = "unknown"
 
         if has_ann and label_path is not None:
-            # We need image dimensions for pixel conversion; use a safe default
-            # and parse from normalized coordinates
-            raw = parse_yolo_annotation(label_path, 1, 1)
+            raw = parse_yolo_annotation_normalized(label_path)
             for item in raw:
                 bbox = BBoxPrediction(
                     type="bbox",
