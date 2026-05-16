@@ -37,11 +37,11 @@ def test_candidate_builder_enables_rule_based_geometry_decision():
         anomaly=AnomalyResult(image_score=0.8, threshold=0.65),
     )
 
-    candidates = build_defect_candidates(patchcore_result=anomaly, image_width=100, image_height=20)
+    candidates = build_defect_candidates(patchcore_result=anomaly, image_width=120, image_height=20)
     decision = RuleEngine(
         {
             "anomaly": {"patchcore_score_threshold": 0.65},
-            "geometry": {"ng_area_px": 200, "ng_scratch_length_mm": 2.0},
+            "geometry": {"ng_area_px": 200, "ng_scratch_length_mm": 1.0},
         }
     ).decide(
         "sample.jpg",

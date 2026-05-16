@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
+
+import torch
 
 from src.fusion.decision_types import BBoxPrediction, UnifiedPrediction
 from src.inference.base_runner import BaseRunner
@@ -28,15 +31,30 @@ class YoloRunner(BaseRunner):
         super().__init__("yolo", config)
         self.conf_threshold: float = float(self.config.get("conf_threshold", 0.6))
         self.iou_threshold: float = float(self.config.get("iou_threshold", 0.5))
-        self.device_str: str = str(self.config.get("device", "auto"))
+        self.device_str: str = self._resolve_device(str(self.config.get("device", "auto")))
         self.model_path: str = str(self.config.get("model_path", "models/yolo/best.pt"))
         self.task: str = str(self.config.get("task", "detect"))
         self._class_names: dict[int, str] = {}
+
+    @staticmethod
+    def _resolve_device(device: str) -> str:
+        """Resolve app-level device values into ultralytics-compatible values."""
+        if device.lower() != "auto":
+            return device
+        return "0" if torch.cuda.is_available() else "cpu"
+
+    @staticmethod
+    def _ensure_ultralytics_config_dir() -> None:
+        """Keep Ultralytics settings inside the project when no user dir is available."""
+        config_dir = Path("outputs/ultralytics").resolve()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
 
     # ------------------------------------------------------------------ load_model
 
     def load_model(self) -> None:
         """Load the YOLO model from disk."""
+        self._ensure_ultralytics_config_dir()
         try:
             from ultralytics import YOLO
         except ImportError as exc:
