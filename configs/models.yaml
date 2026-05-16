@@ -1,0 +1,41 @@
+yolo:
+  enabled: true
+  model_path: "models/yolo/best.pt"
+  conf_threshold: 0.6
+  iou_threshold: 0.5
+  device: "auto"
+  task: "detect"
+
+patchcore:
+  enabled: false
+  mode: "mock"
+  model_path: "models/patchcore/model.ckpt"
+  result_file: "outputs/cache/patchcore_results.csv"
+  score_threshold: 0.65
+  input_size: [256, 256]
+
+efficientad:
+  enabled: false
+  mode: "mock"
+  model_path: "models/efficientad/model.ckpt"
+  result_file: "outputs/cache/efficientad_results.csv"
+  score_threshold: 0.65
+  input_size: [256, 256]
+
+fastflow:
+  enabled: false
+  mode: "mock"
+  model_path: "models/fastflow/model.ckpt"
+  result_file: "outputs/cache/fastflow_results.csv"
+  score_threshold: 0.65
+  input_size: [256, 256]
+
+opencv:
+  enabled: true
+  bright_threshold: 220
+  dark_threshold: 35
+  min_area_px: 8
+  max_area_px: 5000
+  scratch_aspect_ratio: 5.0
+  local_contrast_threshold: 30
+  morphology_kernel_size: 3

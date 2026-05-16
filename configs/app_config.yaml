@@ -1,0 +1,26 @@
+app:
+  title: "铜管表面缺陷模型评测与融合验证工具"
+  page_layout: "wide"
+  theme: "light"
+  debug: false
+  max_preview_images: 100
+  page_size: 50
+
+inference:
+  batch_size: 8
+  num_workers: 2
+  save_predictions: true
+  save_visualizations: true
+  cache_results: true
+
+display:
+  show_confidence: true
+  show_runtime: true
+  bbox_line_thickness: 2
+  heatmap_alpha: 0.5
+  mask_alpha: 0.4
+
+export:
+  excel_include_images: false
+  html_include_plots: true
+  max_export_images: 200

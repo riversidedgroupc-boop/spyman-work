@@ -1,0 +1,50 @@
+dataset:
+  image_dir: "data/images"
+  label_dir: "data/labels"
+  split_file: "data/splits/test.txt"
+  valid_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .bmp
+    - .tif
+    - .tiff
+
+classes:
+  0: OK_clean
+  1: OK_micro_defect
+  2: OK_oil_stain
+  3: NG_scratch
+  4: NG_pit
+  5: NG_dent
+  6: NG_dense_micro_defect
+  7: NG_stain
+  8: NG_unknown
+  9: Borderline
+
+label_groups:
+  ok:
+    - OK_clean
+    - OK_micro_defect
+    - OK_oil_stain
+  ng:
+    - NG_scratch
+    - NG_pit
+    - NG_dent
+    - NG_dense_micro_defect
+    - NG_stain
+    - NG_unknown
+  borderline:
+    - Borderline
+  acceptable_micro:
+    - OK_micro_defect
+    - OK_oil_stain
+
+pixel_size_mm:
+  x: 0.01
+  y: 0.01
+
+line_speed_m_per_min: 80
+
+encoder_resolution:
+  pulses_per_meter: 10000

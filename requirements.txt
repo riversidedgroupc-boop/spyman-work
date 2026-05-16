@@ -1,0 +1,35 @@
+# Core
+streamlit>=1.32.0
+numpy>=1.26.0
+pandas>=2.2.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Computer Vision
+opencv-python>=4.9.0
+Pillow>=10.2.0
+scikit-image>=0.22.0
+
+# Deep Learning
+torch>=2.2.0
+ultralytics>=8.1.0
+
+# Anomaly Detection (optional - uncomment when needed)
+# anomalib>=1.0.0
+
+# Visualization
+matplotlib>=3.8.0
+plotly>=5.18.0
+
+# Excel Export
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Utilities
+rich>=13.7.0
+tqdm>=4.66.0
+scipy>=1.12.0
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=4.1.0

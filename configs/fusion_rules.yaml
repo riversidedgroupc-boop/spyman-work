@@ -1,0 +1,33 @@
+yolo:
+  conf_threshold: 0.6
+  major_defect_classes:
+    - NG_scratch
+    - NG_pit
+    - NG_dent
+    - NG_stain
+  direct_ng_conf_threshold: 0.75
+
+anomaly:
+  patchcore_score_threshold: 0.65
+  efficientad_score_threshold: 0.65
+  fastflow_score_threshold: 0.65
+  unknown_ng_score_threshold: 0.85
+
+geometry:
+  min_defect_area_px: 8
+  acceptable_micro_area_px: 30
+  ng_area_px: 200
+  acceptable_scratch_length_mm: 0.5
+  ng_scratch_length_mm: 2.0
+  long_scratch_aspect_ratio: 5.0
+
+density:
+  enable_density_rule: true
+  max_micro_defect_count_per_meter: 50
+  max_micro_defect_area_per_meter: 500
+
+fusion:
+  strategy: rule_based
+  yolo_priority: true
+  anomaly_for_unknown: true
+  require_double_confirm_for_ng: false
