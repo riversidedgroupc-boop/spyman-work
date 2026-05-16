@@ -399,7 +399,7 @@ patchcore:
   model_path: "models/patchcore/model.ckpt"
 ```
 
-当前 real 模式下如果 anomalib 未安装，会自动回退到 mock 模式并给出提示。
+当前 real 模式不会使用通用示例权重假装检测铜管；需要先用铜管 OK 样本训练并导出 checkpoint，否则请使用 mock 或 import 模式。
 
 ### 4.3 OpenCV 规则检测
 

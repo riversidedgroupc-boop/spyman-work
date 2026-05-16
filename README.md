@@ -31,10 +31,7 @@ pip install -r requirements.txt
 pip install ultralytics
 ```
 
-如需真实异常检测模型（可选）：
-```bash
-pip install anomalib
-```
+异常检测模型使用 anomalib 原生实现；依赖已写入 requirements。PatchCore/EfficientAD/FastFlow 需要用铜管 OK 样本训练后再切换到 real 模式。
 
 ## 运行命令
 

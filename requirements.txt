@@ -14,8 +14,8 @@ scikit-image>=0.22.0
 torch>=2.2.0
 ultralytics>=8.1.0
 
-# Anomaly Detection (optional - uncomment when needed)
-# anomalib>=1.0.0
+# Anomaly Detection
+anomalib>=2.4.2
 
 # Visualization
 matplotlib>=3.8.0
