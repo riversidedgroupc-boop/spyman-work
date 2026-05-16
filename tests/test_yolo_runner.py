@@ -18,11 +18,16 @@ def test_auto_device_falls_back_to_cpu_without_cuda(monkeypatch):
 
     import src.inference.yolo_runner as yolo_runner
 
-    monkeypatch.setattr(yolo_runner, "torch", _Torch())
+    fake_torch = _Torch()
+    monkeypatch.setattr(yolo_runner, "torch", fake_torch)
+    monkeypatch.setitem(__import__("sys").modules, "torch", fake_torch)
 
     runner = YoloRunner({"device": "auto"})
 
+    assert runner.device_str == "cpu"
     assert runner.device == "cpu"
+    # Restore real torch
+    monkeypatch.undo()
 
 
 def test_ultralytics_config_dir_defaults_to_project_outputs(monkeypatch):

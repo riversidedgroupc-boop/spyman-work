@@ -66,6 +66,10 @@ from src.postprocess.candidate_builder import build_defect_candidates
 
 from src.reports.excel_report import ExcelReport
 
+# Phase 2: external model inference & advanced metrics
+from ui.model_inference import render_model_inference
+from ui.advanced_metrics import render_advanced_metrics
+
 # ---------------------------------------------------------------------------
 # Page config
 # ---------------------------------------------------------------------------
@@ -92,6 +96,10 @@ DEFAULTS = {
     "models_loaded": False,
     "inference_run": False,
     "batch_timer": BatchTimer(),
+    # Phase 2
+    "ext_predictions": None,
+    "external_predictions": None,
+    "ext_cache_key": None,
 }
 
 for key, val in DEFAULTS.items():
@@ -387,7 +395,7 @@ if st.sidebar.button("📥 导出 Excel 报告", use_container_width=True):
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📋 项目说明",
     "📊 数据集概览",
     "🔍 单图测试",
@@ -395,6 +403,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🔄 融合策略对比",
     "⚠️ 误判样本池",
     "📥 报告导出",
+    "🤖 外部模型推理",
+    "📊 高级评估分析",
 ])
 
 # ===========================================================================
@@ -1349,11 +1359,26 @@ with tab7:
                         st.error(f"导出失败: {e}")
 
 
+# ===========================================================================
+# Tab 8: External Model Inference (Phase 2)
+# ===========================================================================
+with tab8:
+    render_model_inference()
+
+# ===========================================================================
+# Tab 9: Advanced Metrics (Phase 2)
+# ===========================================================================
+with tab9:
+    records = st.session_state.get("batch_results", [])
+    external_predictions = st.session_state.get("external_predictions", None)
+    render_advanced_metrics(records=records, external_predictions=external_predictions)
+
+
 # ---------------------------------------------------------------------------
 # Footer
 # ---------------------------------------------------------------------------
 st.sidebar.divider()
 st.sidebar.caption(
-    "铜管表面缺陷模型评测与融合验证工具 v0.1.0\n"
+    "铜管表面缺陷模型评测与融合验证工具 v0.2.0\n"
     "研发评估用途，非最终在线检测软件"
 )
