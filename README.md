@@ -77,6 +77,10 @@ class_id x_center y_center width height
 
 ## 配置文件说明
 
+详细的方法优劣势、融合策略和使用建议见：
+
+- [模型方法、融合策略与使用说明](MODEL_AND_STRATEGY_GUIDE.md)
+
 ### configs/dataset.yaml
 数据集路径、类别定义、像素尺寸配置。
 

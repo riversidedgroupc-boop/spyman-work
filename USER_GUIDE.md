@@ -17,6 +17,10 @@
 9. [扩展开发](#9-扩展开发)
 10. [常见问题](#10-常见问题)
 
+补充阅读：
+
+- [模型方法、融合策略与使用说明](MODEL_AND_STRATEGY_GUIDE.md)：集中介绍 YOLO、OpenCV、PatchCore、EfficientAD、FastFlow、import/mock 模式的优劣势，以及各融合策略的适用场景。
+
 ---
 
 ## 1. 快速上手
