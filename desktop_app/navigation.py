@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QLabel
 
 from desktop_app.constants import NAV_ITEMS, NAV_WIDTH, NAV_COLLAPSED_WIDTH
@@ -29,29 +30,41 @@ class NavigationBar(QWidget):
         self._title_label.setToolTip(tr("app.title"))
         self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title_label.setStyleSheet(
-            "font-size: 19px; font-weight: bold; padding: 18px 10px 4px 10px;"
+            "font-size: 19px; font-weight: bold; padding: 14px 8px 1px 8px;"
         )
         self._title_label.setWordWrap(False)
         layout.addWidget(self._title_label)
 
+        self._brand_label = QLabel()
+        bind(self._brand_label, "nav.brand")
+        self._brand_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._brand_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #B0B0B0; padding: 0 8px 2px 8px;")
+        layout.addWidget(self._brand_label)
+
         self._version_label = QLabel()
         bind(self._version_label, "app.version")
         self._version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._version_label.setStyleSheet("font-size: 11px; color: #888; padding: 0 10px 12px 10px;")
+        self._version_label.setStyleSheet("font-size: 10px; color: #888; padding: 0 8px 9px 8px;")
         layout.addWidget(self._version_label)
 
         # Nav list
         self._list = QListWidget()
+        self._list.setObjectName("navList")
         self._rebuild_nav_items()
         self._list.currentRowChanged.connect(self._on_selection_changed)
         layout.addWidget(self._list, 1)
 
     def _rebuild_nav_items(self) -> None:
         self._list.clear()
+        lang = I18nManager.instance().language
         for item in NAV_ITEMS:
             label = tr(f'nav.{item["id"]}')
-            text = f"{item['icon']}" if self._collapsed else f"  {item['icon']}  {label}"
+            text = f"{item['icon']}" if self._collapsed else f"{item['icon']}  {label}"
             list_item = QListWidgetItem(text)
+            font = QFont()
+            font.setPointSize(10 if lang == "en" else 11)
+            font.setBold(True)
+            list_item.setFont(font)
             list_item.setData(Qt.ItemDataRole.UserRole, item["id"])
             list_item.setToolTip(label)
             list_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -59,12 +72,14 @@ class NavigationBar(QWidget):
 
     def _refresh_text(self, lang: str = "") -> None:
         self._title_label.setToolTip(tr("app.title"))
+        self._brand_label.setText(tr("nav.brand"))
         self._rebuild_nav_items()
 
     def set_collapsed(self, collapsed: bool) -> None:
         self._collapsed = collapsed
         self.setFixedWidth(NAV_COLLAPSED_WIDTH if collapsed else NAV_WIDTH)
         self._title_label.setVisible(not collapsed)
+        self._brand_label.setVisible(not collapsed)
         self._version_label.setVisible(not collapsed)
         self._rebuild_nav_items()
 

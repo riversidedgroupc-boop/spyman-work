@@ -21,6 +21,7 @@ from desktop_app.workers.training_worker import TrainingWorker
 
 class TrainingPage(QWidget):
     data_changed = Signal()
+    FIELD_WIDTH = 460
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,9 +39,11 @@ class TrainingPage(QWidget):
         ds_source_label = QLabel()
         bind(ds_source_label, "training.dataset_source")
         self._session_combo = QComboBox()
+        self._set_field_width(self._session_combo)
         ds_form.addRow(ds_source_label, self._session_combo)
         refresh_btn = QPushButton()
         bind(refresh_btn, "app.refresh")
+        self._set_field_width(refresh_btn)
         refresh_btn.clicked.connect(self._refresh_sessions)
         ds_form.addRow("", refresh_btn)
         self._ds_path_label = QLabel()
@@ -58,26 +61,32 @@ class TrainingPage(QWidget):
         bind(base_model_label, "training.base_model")
         self._model_combo = QComboBox()
         self._model_combo.addItems(["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt"])
+        self._set_field_width(self._model_combo)
         tr_form.addRow(base_model_label, self._model_combo)
         epochs_label = QLabel()
         bind(epochs_label, "training.epochs")
         self._epochs_spin = QSpinBox(); self._epochs_spin.setRange(1, 1000); self._epochs_spin.setValue(100)
+        self._set_field_width(self._epochs_spin)
         tr_form.addRow(epochs_label, self._epochs_spin)
         imgsz_label = QLabel()
         bind(imgsz_label, "training.imgsz")
         self._imgsz_spin = QSpinBox(); self._imgsz_spin.setRange(320, 1920); self._imgsz_spin.setSingleStep(32); self._imgsz_spin.setValue(640)
+        self._set_field_width(self._imgsz_spin)
         tr_form.addRow(imgsz_label, self._imgsz_spin)
         batch_label = QLabel()
         bind(batch_label, "training.batch")
         self._batch_spin = QSpinBox(); self._batch_spin.setRange(1, 128); self._batch_spin.setValue(8)
+        self._set_field_width(self._batch_spin)
         tr_form.addRow(batch_label, self._batch_spin)
         device_label = QLabel()
         bind(device_label, "training.device")
         self._device_combo = QComboBox(); self._device_combo.addItems(["cpu", "cuda:0"])
+        self._set_field_width(self._device_combo)
         tr_form.addRow(device_label, self._device_combo)
         job_name_label = QLabel()
         bind(job_name_label, "training.job_name")
         self._job_name_edit = QLineEdit(); self._job_name_edit.setPlaceholderText(tr("training.job_name_placeholder"))
+        self._set_field_width(self._job_name_edit)
         tr_form.addRow(job_name_label, self._job_name_edit)
         layout.addWidget(tr_group)
 
@@ -97,6 +106,9 @@ class TrainingPage(QWidget):
         self._stop_btn.clicked.connect(self._stop_training)
         btn_layout.addWidget(self._stop_btn); btn_layout.addStretch()
         layout.addLayout(btn_layout); layout.addStretch()
+
+    def _set_field_width(self, widget) -> None:
+        widget.setFixedWidth(self.FIELD_WIDTH)
 
     def _refresh_text(self, lang: str = "") -> None:
         """Re-set combo placeholder on language change."""

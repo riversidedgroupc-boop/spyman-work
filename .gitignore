@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.pytest-tmp/
 .coverage
 htmlcov/
 .mypy_cache/
@@ -19,11 +20,16 @@ env/
 
 # Generated outputs
 outputs/
+logs/
 .cache/
 offline_pkgs/
+phase4_v0_4_platform/
 
 # Local sample datasets
 data/images/copper images/
+data/images/test/
+data/labels/test_labels/
+data/app.db
 
 # OS / editor
 .DS_Store

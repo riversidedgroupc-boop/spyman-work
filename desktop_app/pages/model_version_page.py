@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from core.model_version import (
     list_model_versions, create_model_version, update_model_version, delete_model_version,
+    activate_model, rollback_model, get_active_model,
 )
 from desktop_app.app_context import AppContext
 from desktop_app.display import (
@@ -44,11 +45,19 @@ class ModelVersionPage(QWidget):
         del_btn = QPushButton()
         bind(del_btn, "app.delete")
         del_btn.setObjectName("dangerBtn"); del_btn.clicked.connect(self._delete_model)
-        btn_layout.addWidget(del_btn); btn_layout.addStretch()
+        btn_layout.addWidget(del_btn)
+        activate_btn = QPushButton()
+        bind(activate_btn, "model.activate_btn")
+        activate_btn.setObjectName("primaryBtn"); activate_btn.clicked.connect(self._activate_model)
+        btn_layout.addWidget(activate_btn)
+        rollback_btn = QPushButton()
+        bind(rollback_btn, "model.rollback_btn")
+        rollback_btn.clicked.connect(self._rollback_model)
+        btn_layout.addWidget(rollback_btn); btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
-        self._table = QTableWidget(0, 7)
-        self._table.setHorizontalHeaderLabels([tr("model.col_id"), tr("project.col_name"), tr("model.col_type"), tr("app.path"), tr("model.col_base"), tr("app.status"), tr("model.col_created")])
+        self._table = QTableWidget(0, 8)
+        self._table.setHorizontalHeaderLabels([tr("model.col_id"), tr("project.col_name"), tr("model.col_type"), tr("app.path"), tr("model.col_base"), tr("app.status"), tr("model.col_active"), tr("model.col_created")])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -70,7 +79,7 @@ class ModelVersionPage(QWidget):
 
     def _refresh_text(self, lang: str = "") -> None:
         """Re-set table headers on language change."""
-        self._table.setHorizontalHeaderLabels([tr("model.col_id"), tr("project.col_name"), tr("model.col_type"), tr("app.path"), tr("model.col_base"), tr("app.status"), tr("model.col_created")])
+        self._table.setHorizontalHeaderLabels([tr("model.col_id"), tr("project.col_name"), tr("model.col_type"), tr("app.path"), tr("model.col_base"), tr("app.status"), tr("model.col_active"), tr("model.col_created")])
 
     def showEvent(self, event): super().showEvent(event); self._refresh()
 
@@ -85,7 +94,17 @@ class ModelVersionPage(QWidget):
             self._table.setItem(row, 3, QTableWidgetItem(m.model_path[:60]))
             self._table.setItem(row, 4, QTableWidgetItem(m.base_model or ""))
             self._table.setItem(row, 5, QTableWidgetItem(model_status_label(m.status)))
-            self._table.setItem(row, 6, QTableWidgetItem(m.created_at or ""))
+            active_item = QTableWidgetItem(tr("model.active") if m.is_active else tr("model.inactive"))
+            if m.is_active:
+                active_item.setForeground(Qt.GlobalColor.green)
+                # Highlight entire row
+                from PySide6.QtGui import QColor
+                for col in range(8):
+                    item = self._table.item(row, col)
+                    if item:
+                        item.setBackground(QColor(0, 60, 0))
+            self._table.setItem(row, 6, active_item)
+            self._table.setItem(row, 7, QTableWidgetItem(m.created_at or ""))
 
     def _add_model(self):
         pid = self._ctx.current_project_id
@@ -107,6 +126,39 @@ class ModelVersionPage(QWidget):
         if row < 0: return
         mid = self._table.item(row, 0).text()
         update_model_version(mid, status=self._status_combo.currentData()); self._refresh()
+
+    def _activate_model(self):
+        row = self._table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, tr("app.tip"), tr("app.select_item"))
+            return
+        mid = self._table.item(row, 0).text()
+        model = get_active_model(self._ctx.current_project_id) if self._ctx.current_project_id else None
+
+        msg = tr("model.activate_confirm", name=mid)
+        if model and model.model_id != mid:
+            msg += "\n\n" + tr("model.activate_warning_other", other=model.model_name)
+
+        if QMessageBox.question(self, tr("model.activate_btn"), msg) == QMessageBox.StandardButton.Yes:
+            result = activate_model(mid)
+            if result:
+                QMessageBox.information(self, tr("app.completed"), tr("model.activated", name=result.model_name))
+                self._refresh()
+                self.data_changed.emit()
+
+    def _rollback_model(self):
+        row = self._table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, tr("app.tip"), tr("app.select_item"))
+            return
+        mid = self._table.item(row, 0).text()
+
+        if QMessageBox.question(self, tr("model.rollback_btn"), tr("model.rollback_confirm", name=mid)) == QMessageBox.StandardButton.Yes:
+            result = rollback_model(mid)
+            if result:
+                QMessageBox.information(self, tr("app.completed"), tr("model.rolled_back", name=result.model_name))
+                self._refresh()
+                self.data_changed.emit()
 
 
 class RegisterModelDialog(QDialog):

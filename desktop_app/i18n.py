@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, Signal
 _STRINGS: dict[str, dict[str, str]] = {
     # App
     "app.title": {"zh": "CX-vision — 工业视觉在线检测系统", "en": "CX-vision — Industrial Vision Online Inspection System"},
-    "app.version": {"zh": "v0.5.0", "en": "v0.5.0"},
+    "app.version": {"zh": "v0.6.0", "en": "v0.6.0"},
     "app.not_implemented": {"zh": "待实现", "en": "Not Implemented"},
     "app.ok": {"zh": "确定", "en": "OK"},
     "app.cancel": {"zh": "取消", "en": "Cancel"},
@@ -71,6 +71,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "nav.reports": {"zh": "报告中心", "en": "Reports"},
     "nav.settings": {"zh": "系统设置", "en": "System Settings"},
 
+    "nav.brand": {"zh": "表面缺陷视觉检测", "en": "Surface Defect Vision"},
     # Status bar
     "status.current_context": {"zh": "当前客户: {customer} | 项目: {project} | 规格: {spec}", "en": "Customer: {customer} | Project: {project} | Spec: {spec}"},
     "status.no_project": {"zh": "未选择项目", "en": "No project selected"},
@@ -260,6 +261,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "model.col_id": {"zh": "模型ID", "en": "Model ID"},
     "model.col_type": {"zh": "类型", "en": "Type"},
     "model.col_base": {"zh": "基础模型", "en": "Base Model"},
+    "model.col_active": {"zh": "在线", "en": "Active"},
     "model.col_created": {"zh": "创建时间", "en": "Created"},
     "model.status_mgmt": {"zh": "状态管理:", "en": "Status Management:"},
     "model.set_status": {"zh": "设置状态", "en": "Set Status"},
@@ -335,7 +337,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "production.live_view": {"zh": "实时画面", "en": "Live View"},
     "production.cam_status": {"zh": "相机状态", "en": "Camera Status"},
     "production.cam_offline": {"zh": "相机{i}: 离线", "en": "Camera {i}: Offline"},
-    "production.cam_status_fmt": {"zh": "{cam}: {fps} FPS | {frames} frames", "en": "{cam}: {fps} FPS | {frames} frames"},
+    "production.cam_status_fmt": {"zh": "{cam}: {fps} FPS | {frames} fr | {pos} m", "en": "{cam}: {fps} FPS | {frames} fr | {pos} m"},
     "production.recent_ng": {"zh": "最近 NG 图像", "en": "Recent NG Images"},
     "production.no_ng": {"zh": "无 NG", "en": "No NG"},
     "production.defect_events": {"zh": "缺陷事件", "en": "Defect Events"},
@@ -398,6 +400,9 @@ _STRINGS: dict[str, dict[str, str]] = {
 
     # Defect trace page
     "trace.title": {"zh": "缺陷追溯", "en": "Defect Trace"},
+    "trace.source": {"zh": "数据源:", "en": "Source:"},
+    "trace.source_samples": {"zh": "采集样本", "en": "Captured Samples"},
+    "trace.source_events": {"zh": "生产缺陷事件", "en": "Production Defect Events"},
     "trace.session": {"zh": "会话:", "en": "Session:"},
     "trace.label_filter": {"zh": "标签:", "en": "Label:"},
     "trace.query": {"zh": "查询", "en": "Query"},
@@ -406,7 +411,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "trace.col_label": {"zh": "标签", "en": "Label"},
     "trace.col_width": {"zh": "宽度", "en": "Width"},
     "trace.col_height": {"zh": "高度", "en": "Height"},
+    "trace.date_from": {"zh": "从:", "en": "From:"},
+    "trace.date_to": {"zh": "到:", "en": "To:"},
     "trace.stats": {"zh": "总计: {total} | 分类分布: {distribution}", "en": "Total: {total} | Distribution: {distribution}"},
+    "trace.stats_events": {"zh": "总计: {total} | 缺陷类型: {distribution}", "en": "Total: {total} | Defect Types: {distribution}"},
+    "trace.histogram_tip": {"zh": "位置范围: {min_p}m ~ {max_p}m | 事件数: {count}", "en": "Position: {min_p}m ~ {max_p}m | Events: {count}"},
 
     # Report page
     "report.title": {"zh": "报告中心", "en": "Report Center"},
@@ -483,6 +492,185 @@ _STRINGS: dict[str, dict[str, str]] = {
     "worker.report_platform": {"zh": "平台", "en": "Platform"},
     "worker.report_model_name": {"zh": "模型版本", "en": "Model Version"},
     "worker.report_model_path": {"zh": "模型路径", "en": "Model Path"},
+
+    # ── V6 additions ──────────────────────────────────────────────────
+
+    # Navigation
+    "nav.log_center": {"zh": "日志中心", "en": "Log Center"},
+    "nav.backup": {"zh": "备份恢复", "en": "Backup & Restore"},
+
+    # Camera Config (V6)
+    "camera.adapter_type": {"zh": "适配器类型:", "en": "Adapter Type:"},
+    "camera.connection_params": {"zh": "连接参数:", "en": "Connection Params:"},
+    "camera.device_id": {"zh": "设备ID:", "en": "Device ID:"},
+    "camera.exposure_us": {"zh": "曝光时间 (µs):", "en": "Exposure (µs):"},
+    "camera.gain_db": {"zh": "增益 (dB):", "en": "Gain (dB):"},
+    "camera.trigger_mode": {"zh": "触发模式:", "en": "Trigger Mode:"},
+    "camera.trigger_continuous": {"zh": "连续采集", "en": "Continuous"},
+    "camera.trigger_external": {"zh": "硬件触发", "en": "External Trigger"},
+    "camera.trigger_software": {"zh": "软件触发", "en": "Software Trigger"},
+    "camera.roi": {"zh": "ROI:", "en": "ROI:"},
+    "camera.roi_x": {"zh": "X:", "en": "X:"},
+    "camera.roi_y": {"zh": "Y:", "en": "Y:"},
+    "camera.roi_w": {"zh": "W:", "en": "W:"},
+    "camera.roi_h": {"zh": "H:", "en": "H:"},
+    "camera.model_binding": {"zh": "绑定模型:", "en": "Model Binding:"},
+    "camera.enabled": {"zh": "启用", "en": "Enabled"},
+    "camera.disabled": {"zh": "禁用", "en": "Disabled"},
+    "camera.config_saved": {"zh": "相机配置已保存 ({count}/{total})", "en": "Camera config saved ({count}/{total})"},
+    "camera.no_configs": {"zh": "无相机配置", "en": "No camera configs"},
+    "camera.config_count": {"zh": "{count} 个相机已配置", "en": "{count} camera(s) configured"},
+
+    # Production — V6 multi-camera
+    "production.camera_tabs": {"zh": "相机 {i}", "en": "Camera {i}"},
+    "production.camera_count_label": {"zh": "相机数量: {count}", "en": "Camera Count: {count}"},
+    "production.no_cameras": {"zh": "请先在设备配置中配置相机", "en": "Please configure cameras in Device Config"},
+    "production.sampling_mode": {"zh": "采样模式:", "en": "Sampling Mode:"},
+    "production.sampling_directory_watch": {"zh": "目录监听", "en": "Directory Watch"},
+    "production.sampling_by_time": {"zh": "按时间", "en": "By Time"},
+    "production.sampling_by_distance": {"zh": "按距离", "en": "By Distance"},
+    "production.sampling_manual": {"zh": "手动触发", "en": "Manual Trigger"},
+    "production.interval_seconds": {"zh": "间隔 (秒):", "en": "Interval (s):"},
+    "production.distance_meters": {"zh": "距离 (米):", "en": "Distance (m):"},
+    "production.manual_trigger": {"zh": "手动抓图", "en": "Manual Capture"},
+    "production.encoder_position": {"zh": "当前位置: {pos:.3f} m", "en": "Position: {pos:.3f} m"},
+
+    # Defect trace — V6 extended fields
+    "defect.model_version": {"zh": "模型版本", "en": "Model Version"},
+    "defect.defect_type": {"zh": "缺陷类型", "en": "Defect Type"},
+    "defect.position_meter": {"zh": "位置 (m)", "en": "Position (m)"},
+
+    # Classification labels — V6
+    "label.NG_C": {"zh": "NG_C", "en": "NG_C"},
+    "label.IGNORE": {"zh": "忽略", "en": "Ignore"},
+
+    # Dataset Version (V6)
+    "dataset_version.title": {"zh": "数据集版本", "en": "Dataset Versions"},
+    "dataset_version.generate": {"zh": "生成数据集版本", "en": "Generate Dataset Version"},
+    "dataset_version.generate_yolo": {"zh": "生成 YOLO 数据集", "en": "Generate YOLO Dataset"},
+    "dataset_version.generate_anomaly": {"zh": "生成异常检测数据集", "en": "Generate Anomaly Dataset"},
+    "dataset_version.history": {"zh": "版本历史", "en": "Version History"},
+    "dataset_version.quality_score": {"zh": "质量评分: {score:.0f}/100", "en": "Quality Score: {score:.0f}/100"},
+    "dataset_version.class_distribution": {"zh": "类别分布", "en": "Class Distribution"},
+    "dataset_version.missing_bbox": {"zh": "缺失标注: {count}", "en": "Missing Labels: {count}"},
+    "dataset_version.image_integrity": {"zh": "损坏图片: {count}", "en": "Corrupt Images: {count}"},
+    "dataset_version.no_versions": {"zh": "暂无数据集版本", "en": "No dataset versions yet"},
+    "dataset_version.delete_confirm": {"zh": "删除数据集版本「{name}」?", "en": "Delete dataset version \"{name}\"?"},
+    "dataset_version.build_complete": {"zh": "数据集已生成:\n{path}\n图片: {images} 张\n质量评分: {score:.0f}/100", "en": "Dataset built:\n{path}\nImages: {images}\nQuality Score: {score:.0f}/100"},
+    "dataset_version.col_version": {"zh": "版本名称", "en": "Version"},
+    "dataset_version.col_source": {"zh": "类型", "en": "Type"},
+    "dataset_version.col_images": {"zh": "图片数", "en": "Images"},
+    "dataset_version.col_classes": {"zh": "类别", "en": "Classes"},
+    "dataset_version.col_quality": {"zh": "质量评分", "en": "Quality"},
+    "dataset_version.col_date": {"zh": "创建日期", "en": "Created"},
+
+    # Log Center (V6)
+    "log_center.title": {"zh": "日志中心", "en": "Log Center"},
+    "log_center.tab_app": {"zh": "应用日志", "en": "App Log"},
+    "log_center.tab_camera": {"zh": "相机日志", "en": "Camera Log"},
+    "log_center.tab_inference": {"zh": "推理日志", "en": "Inference Log"},
+    "log_center.tab_system": {"zh": "系统日志", "en": "System Log"},
+    "log_center.tab_error": {"zh": "错误日志", "en": "Error Log"},
+    "log_center.tab_audit": {"zh": "审计日志", "en": "Audit Log"},
+    "log_center.filter_level": {"zh": "级别:", "en": "Level:"},
+    "log_center.filter_search": {"zh": "搜索...", "en": "Search..."},
+    "log_center.export": {"zh": "导出", "en": "Export"},
+    "log_center.clear": {"zh": "清空", "en": "Clear"},
+    "log_center.auto_refresh": {"zh": "自动刷新", "en": "Auto Refresh"},
+    "log_center.no_logs": {"zh": "暂无日志", "en": "No logs"},
+
+    # Backup/Restore (V6)
+    "backup.title": {"zh": "备份恢复", "en": "Backup & Restore"},
+    "backup.create": {"zh": "创建备份", "en": "Create Backup"},
+    "backup.create_desc": {"zh": "备份数据库和配置文件", "en": "Backup database and configs"},
+    "backup.include_db": {"zh": "数据库", "en": "Database"},
+    "backup.include_configs": {"zh": "配置文件", "en": "Configs"},
+    "backup.include_models": {"zh": "模型文件", "en": "Models"},
+    "backup.list_title": {"zh": "备份历史", "en": "Backup History"},
+    "backup.col_date": {"zh": "日期", "en": "Date"},
+    "backup.col_name": {"zh": "名称", "en": "Name"},
+    "backup.col_size": {"zh": "大小", "en": "Size"},
+    "backup.col_items": {"zh": "内容", "en": "Items"},
+    "backup.restore": {"zh": "恢复", "en": "Restore"},
+    "backup.confirm_restore": {"zh": "恢复备份「{name}」？\n当前数据将被覆盖。", "en": "Restore backup \"{name}\"?\nCurrent data will be overwritten."},
+    "backup.restored": {"zh": "备份已恢复", "en": "Backup restored"},
+    "backup.deleted": {"zh": "备份已删除", "en": "Backup deleted"},
+    "backup.in_progress": {"zh": "备份中...", "en": "Backing up..."},
+    "backup.completed": {"zh": "备份完成: {name}", "en": "Backup completed: {name}"},
+    "backup.no_backups": {"zh": "暂无备份", "en": "No backups yet"},
+
+    # Model activation guards (V6)
+    "model.active": {"zh": "在线", "en": "Active"},
+    "model.inactive": {"zh": "离线", "en": "Inactive"},
+    "model.activate_btn": {"zh": "设为在线模型", "en": "Set as Active"},
+    "model.rollback_btn": {"zh": "回滚", "en": "Rollback"},
+    "model.activate_confirm": {"zh": "将模型「{name}」设为当前在线模型？", "en": "Set model \"{name}\" as active?"},
+    "model.activate_warning_other": {"zh": "当前已有在线模型「{other}」，将被替换。", "en": "Active model \"{other}\" will be replaced."},
+    "model.rollback_confirm": {"zh": "回滚模型「{name}」？", "en": "Rollback model \"{name}\"?"},
+    "model.activated": {"zh": "模型已上线: {name}", "en": "Model activated: {name}"},
+    "model.rolled_back": {"zh": "模型已回滚: {name}", "en": "Model rolled back: {name}"},
+
+    # Report formats (V6)
+    "report.format_type": {"zh": "导出格式:", "en": "Export Format:"},
+    "report.format_markdown": {"zh": "Markdown", "en": "Markdown"},
+    "report.format_html": {"zh": "HTML", "en": "HTML"},
+    "report.format_pdf": {"zh": "PDF", "en": "PDF"},
+    "report.format_excel": {"zh": "Excel", "en": "Excel"},
+    "report.format_csv": {"zh": "CSV", "en": "CSV"},
+    "report.format_json": {"zh": "JSON", "en": "JSON"},
+    "report.generating": {"zh": "生成中...", "en": "Generating..."},
+    "report.pdf_fallback": {"zh": "fpdf2 未安装，已导出为 HTML 格式", "en": "fpdf2 not installed, exported as HTML instead"},
+
+    # General app actions
+    "app.delete_confirm": {"zh": "确认删除「{name}」?", "en": "Delete \"{name}\"?"},
+    "app.select_item": {"zh": "请先选择一项", "en": "Please select an item first"},
+
+    # Camera config dialog (Phase 1)
+    "camera.dialog_title": {"zh": "相机 {i} 配置", "en": "Camera {i} Configuration"},
+    "camera.basic_settings": {"zh": "基本设置", "en": "Basic Settings"},
+    "camera.image_acq": {"zh": "图像采集", "en": "Image Acquisition"},
+    "camera.invalid_connection_json": {"zh": "连接参数不是有效的JSON", "en": "Connection params must be valid JSON"},
+    "camera.not_configured": {"zh": "未配置", "en": "Not configured"},
+    "camera.configure": {"zh": "配置...", "en": "Configure..."},
+    "camera.connect_failed": {"zh": "{cam}: 连接失败 — {err}", "en": "{cam}: Connect failed — {err}"},
+    "camera.model_binding_placeholder": {"zh": "输入模型名称或路径", "en": "Enter model name or path"},
+
+    # Navigation (Phase 1)
+    "nav.camera_config": {"zh": "相机配置", "en": "Camera Config"},
+
+    # Production — V6 sampling / encoder UI (Phase 1)
+    "production.sampling_continuous": {"zh": "连续采集", "en": "Continuous"},
+    "production.no_cameras_msg": {"zh": "没有可用的相机。请先在「相机配置」中配置至少一个相机。", "en": "No cameras available. Please configure at least one camera in Camera Config."},
+
+    # General UI (Phase 1)
+    "app.save_all": {"zh": "全部保存", "en": "Save All"},
+    "app.select_spec_first": {"zh": "请先选择产品规格", "en": "Please select a product spec first"},
+
+    # Encoder — live position and controls (Phase 1)
+    "encoder.connect": {"zh": "连接", "en": "Connect"},
+    "encoder.disconnect": {"zh": "断开", "en": "Disconnect"},
+    "encoder.reset": {"zh": "复位", "en": "Reset"},
+    "encoder.status_disconnected": {"zh": "状态: 未连接", "en": "Status: Disconnected"},
+    "encoder.status_connected_simulated": {"zh": "状态: 模拟模式运行中", "en": "Status: Simulated mode running"},
+    "encoder.status_connected_rs422": {"zh": "状态: RS422已连接（预留）", "en": "Status: RS422 connected (reserved)"},
+    "encoder.status_fmt": {"zh": "位置: {pos:.3f} m | 速度: {speed:.1f} m/min", "en": "Pos: {pos:.3f} m | Speed: {speed:.1f} m/min"},
+    "encoder.position_display": {"zh": "{pos} m", "en": "{pos} m"},
+    "encoder.position": {"zh": "当前位置:", "en": "Current Position:"},
+    "encoder.rs422_placeholder": {"zh": "RS422编码器功能将在后续版本中实现。当前仅支持模拟模式。", "en": "RS422 encoder will be implemented in a future version. Only simulated mode is available."},
+    "encoder.ethercat_placeholder": {"zh": "EtherCAT编码器功能将在后续版本中实现。当前仅支持模拟模式。", "en": "EtherCAT encoder will be implemented in a future version. Only simulated mode is available."},
+
+    # Navigation — Help
+    "nav.help": {"zh": "帮助", "en": "Help"},
+
+    # Help page
+    "help.title": {"zh": "帮助", "en": "Help"},
+    "help.overview": {"zh": "系统概览", "en": "System Overview"},
+    "help.modules": {"zh": "功能模块", "en": "Feature Modules"},
+    "help.sampling": {"zh": "采样模式", "en": "Sampling Modes"},
+    "help.model_lifecycle": {"zh": "模型生命周期", "en": "Model Lifecycle"},
+    "help.shortcuts": {"zh": "键盘快捷键", "en": "Keyboard Shortcuts"},
+    "help.roadmap": {"zh": "V7 路线图", "en": "V7 Roadmap"},
+    "help.toc": {"zh": "目录", "en": "Table of Contents"},
 }
 
 # ── I18n Manager ───────────────────────────────────────────────────

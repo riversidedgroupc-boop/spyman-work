@@ -1,0 +1,104 @@
+# -*- mode: python ; coding: utf-8 -*-
+# CX-vision V6 — PyInstaller spec for Windows desktop application
+
+a = Analysis(
+    ['../main.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('../config', 'config'),
+        ('../data', 'data'),
+        ('../configs', 'configs'),
+        ('../models', 'models'),
+    ],
+    hiddenimports=[
+        # Qt
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
+        # ML / CV
+        'ultralytics',
+        'cv2',
+        'numpy',
+        'PIL',
+        'torch',
+        # Reports
+        'openpyxl',
+        'markdown',
+        # V6 new modules
+        'core.camera_config',
+        'core.dataset_version',
+        'core.dataset_quality',
+        'core.log_manager',
+        'core.config_backup',
+        'core.sampling_controller',
+        'runtime.encoder_reader',
+        'runtime.acquisition_pipeline',
+        'runtime.inference_pipeline',
+        'runtime.frame_buffer',
+        'runtime.health_monitor',
+        'camera_adapters',
+        'camera_adapters.base',
+        'camera_adapters.folder_watcher',
+        'camera_adapters.hikvision_mvs',
+        'camera_adapters.basler_pylon',
+        'trainers',
+        'trainers.base',
+        'trainers.yolo_trainer',
+        'trainers.patchcore_trainer',
+        'trainers.hybrid_trainer',
+        'trainers.registry',
+        'model_runners',
+        'model_runners.yolo_runner',
+        'desktop_app.pages',
+        'desktop_app.dialogs',
+        'desktop_app.workers',
+        'desktop_app.widgets',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        'tkinter',
+        'notebook',
+        'jupyter',
+        'IPython',
+        'streamlit',
+    ],
+    noarchive=False,
+    optimize=0,
+)
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='CX-vision',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='CX-vision',
+)

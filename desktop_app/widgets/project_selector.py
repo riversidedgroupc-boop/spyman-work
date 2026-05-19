@@ -30,28 +30,28 @@ class ProjectSelector(QWidget):
 
     def _build_ui(self) -> None:
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 6, 12, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(8, 3, 8, 3)
+        layout.setSpacing(6)
 
         self._customer_label = QLabel()
         bind(self._customer_label, "selector.customer")
         layout.addWidget(self._customer_label)
         self._customer_combo = QComboBox()
-        self._customer_combo.setMinimumWidth(150)
+        self._customer_combo.setMinimumWidth(135)
         layout.addWidget(self._customer_combo)
 
         self._project_label = QLabel()
         bind(self._project_label, "selector.project")
         layout.addWidget(self._project_label)
         self._project_combo = QComboBox()
-        self._project_combo.setMinimumWidth(150)
+        self._project_combo.setMinimumWidth(135)
         layout.addWidget(self._project_combo)
 
         self._spec_label = QLabel()
         bind(self._spec_label, "selector.spec")
         layout.addWidget(self._spec_label)
         self._spec_combo = QComboBox()
-        self._spec_combo.setMinimumWidth(150)
+        self._spec_combo.setMinimumWidth(135)
         layout.addWidget(self._spec_combo)
 
         layout.addStretch()

@@ -1,4 +1,4 @@
-"""Report page — generate project/batch/system reports."""
+"""Report page — generate project/batch/system reports in multiple formats."""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
@@ -11,7 +11,7 @@ from core.product_spec import list_product_specs
 from runtime.health_monitor import HealthMonitor
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import tr, bind, I18nManager
-from desktop_app.workers.report_worker import ReportWorker
+from desktop_app.workers.report_worker import ReportWorker, SUPPORTED_FORMATS
 from desktop_app.constants import APP_VERSION
 
 
@@ -37,6 +37,18 @@ class ReportPage(QWidget):
         self._type_combo.addItem(tr("report.batch"), "batch")
         self._type_combo.addItem(tr("report.system"), "system")
         top.addWidget(self._type_combo)
+
+        format_label = QLabel()
+        bind(format_label, "report.format_type")
+        top.addWidget(format_label)
+        self._format_combo = QComboBox()
+        self._format_combo.addItem(tr("report.format_markdown"), "md")
+        self._format_combo.addItem(tr("report.format_html"), "html")
+        self._format_combo.addItem(tr("report.format_pdf"), "pdf")
+        self._format_combo.addItem(tr("report.format_csv"), "csv")
+        self._format_combo.addItem(tr("report.format_json"), "json")
+        top.addWidget(self._format_combo)
+
         gen_btn = QPushButton()
         bind(gen_btn, "report.generate")
         gen_btn.clicked.connect(self._generate)
@@ -61,6 +73,12 @@ class ReportPage(QWidget):
         self._type_combo.addItem(tr("report.project"), "project")
         self._type_combo.addItem(tr("report.batch"), "batch")
         self._type_combo.addItem(tr("report.system"), "system")
+        self._format_combo.clear()
+        self._format_combo.addItem(tr("report.format_markdown"), "md")
+        self._format_combo.addItem(tr("report.format_html"), "html")
+        self._format_combo.addItem(tr("report.format_pdf"), "pdf")
+        self._format_combo.addItem(tr("report.format_csv"), "csv")
+        self._format_combo.addItem(tr("report.format_json"), "json")
 
     def _generate(self):
         rt = self._type_combo.currentData()
@@ -83,10 +101,12 @@ class ReportPage(QWidget):
         elif rt == "system":
             context["health"] = HealthMonitor().get_health()
 
+        export_fmt = self._format_combo.currentData() or "md"
         self._worker = ReportWorker(
             report_type=rt,
             project_name=self._ctx.current_project_name,
             context=context,
+            export_format=export_fmt,
         )
         self._worker.message.connect(self._on_message)
         self._worker.finished.connect(self._on_finished)

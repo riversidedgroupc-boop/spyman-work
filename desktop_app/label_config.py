@@ -10,9 +10,9 @@ DEFAULT_LABELS = [
     {"value": "OK", "label": "OK", "color": "#2E7D32"},
     {"value": "NG_A", "label": "NG-A 缺陷", "color": "#C62828"},
     {"value": "NG_B", "label": "NG-B 缺陷", "color": "#E65100"},
-    {"value": "UNKNOWN", "label": "未知", "color": "#6A1B9A"},
-    {"value": "INTERFERENCE", "label": "干扰", "color": "#0277BD"},
-    {"value": "UNCERTAIN", "label": "不确定", "color": "#F57F17"},
+    {"value": "NG_C", "label": "NG-C 缺陷", "color": "#BF360C"},
+    {"value": "UNKNOWN", "label": "未知缺陷", "color": "#6A1B9A"},
+    {"value": "IGNORE", "label": "忽略", "color": "#78909C"},
 ]
 
 
