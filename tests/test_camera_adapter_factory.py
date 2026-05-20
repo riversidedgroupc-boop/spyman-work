@@ -22,6 +22,8 @@ def test_create_unknown_adapter_raises():
 def test_available_adapter_types_includes_folder_watcher():
     types = available_adapter_types()
     assert "folder_watcher" in types
+    assert "line_scan" in types
+    assert "hikrobot_line_scan" in types
     assert isinstance(types, list)
     assert types == sorted(types)
 

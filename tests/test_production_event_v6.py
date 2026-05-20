@@ -95,6 +95,50 @@ def test_record_ng_event_saves_under_camera_directory(setup_db, tmp_path):
     assert os.path.isfile(evt.ng_image_path)
 
 
+def test_record_ng_event_writes_v7_defect_files(setup_db, tmp_path):
+    from core.production_event import record_ng_event
+    from core.schema import DetectionBox, ImagePrediction
+    import json
+    import numpy as np
+
+    img = (np.random.rand(16, 16, 3) * 255).astype("uint8")
+    det = DetectionBox(
+        image_name="tile.png",
+        class_id=0,
+        class_name="scratch",
+        confidence=0.9,
+        bbox=[1, 2, 3, 4],
+    )
+    setattr(det, "block_x", 11)
+    setattr(det, "block_y", 22)
+    setattr(det, "tile_id", "BLK_000_T_0000_0000")
+    pred = ImagePrediction(image_name="tile.png", detections=[det])
+
+    record_ng_event(
+        project_id=setup_db["project"].project_id,
+        spec_id=setup_db["spec"].spec_id,
+        camera_id="CAM_01",
+        image=img,
+        prediction=pred,
+        output_root=str(tmp_path),
+        model_version="model_v7",
+        position_meter=1.23,
+        block_id="BLK_000",
+        tile_id="BLK_000_T_0000_0000",
+    )
+
+    csv_path = tmp_path / "results" / "defects.csv"
+    jsonl_path = tmp_path / "results" / "defects.jsonl"
+    assert csv_path.is_file()
+    assert jsonl_path.is_file()
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert "block_id,tile_id" in csv_text
+    assert "BLK_000,BLK_000_T_0000_0000" in csv_text
+    first = json.loads(jsonl_path.read_text(encoding="utf-8").splitlines()[0])
+    assert first["block_id"] == "BLK_000"
+    assert first["tile_id"] == "BLK_000_T_0000_0000"
+
+
 def test_defect_event_from_dict_backward_compat():
     from core.production_event import DefectEvent
     # Simulate a V5 row without new fields

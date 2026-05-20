@@ -35,6 +35,10 @@ class CameraConfig:
     save_ng_image: bool = True
     roi: str = "{}"
     model_binding: str = ""
+    # ── Line-scan specific ──
+    line_rate: int | None = None         # Hz (e.g. 20000)
+    image_block_height: int | None = 1024  # lines per block
+    pixel_format: str = "Mono8"           # Mono8, Mono12, BayerRG8, etc.
     notes: str = ""
     created_at: str = ""
     updated_at: str = ""
@@ -69,6 +73,9 @@ class CameraConfig:
             "save_ng_image": 1 if self.save_ng_image else 0,
             "roi": self.roi,
             "model_binding": self.model_binding,
+            "line_rate": self.line_rate,
+            "image_block_height": self.image_block_height,
+            "pixel_format": self.pixel_format,
             "notes": self.notes,
             "created_at": self.created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -99,6 +106,9 @@ class CameraConfig:
             save_ng_image=bool(row.get("save_ng_image", 1)),
             roi=row.get("roi", "{}"),
             model_binding=row.get("model_binding", ""),
+            line_rate=row.get("line_rate"),
+            image_block_height=row.get("image_block_height"),
+            pixel_format=row.get("pixel_format", "Mono8"),
             notes=row.get("notes", ""),
             created_at=row.get("created_at", ""),
             updated_at=row.get("updated_at", ""),

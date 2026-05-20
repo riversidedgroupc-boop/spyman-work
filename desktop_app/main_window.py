@@ -30,6 +30,7 @@ from desktop_app.app_context import AppContext
 from desktop_app.pages.production_run_page import ProductionRunPage
 from desktop_app.pages.device_config_page import DeviceConfigPage
 from desktop_app.pages.camera_config_page import CameraConfigPage
+from desktop_app.pages.device.commissioning_panel import CommissioningPanel
 from desktop_app.pages.plc_config_page import PlcConfigPage
 from desktop_app.pages.encoder_config_page import EncoderConfigPage
 from desktop_app.pages.defect_trace_page import DefectTracePage
@@ -140,10 +141,12 @@ class MainWindow(QMainWindow):
         self._device_tabs = QTabWidget()
         self._device_config_page = DeviceConfigPage()
         self._camera_config_page = CameraConfigPage()
+        self._commissioning_panel = CommissioningPanel()
         self._plc_config_page = PlcConfigPage()
         self._encoder_config_page = EncoderConfigPage()
         self._device_tabs.addTab(self._device_config_page, tr("device.title"))
         self._device_tabs.addTab(self._camera_config_page, tr("camera.title"))
+        self._device_tabs.addTab(self._commissioning_panel, "现场联调")
         self._device_tabs.addTab(self._plc_config_page, tr("plc.title"))
         self._device_tabs.addTab(self._encoder_config_page, tr("encoder.title"))
         dl = QVBoxLayout(device_container)
@@ -209,8 +212,9 @@ class MainWindow(QMainWindow):
 
         self._device_tabs.setTabText(0, tr("device.title"))
         self._device_tabs.setTabText(1, tr("camera.title"))
-        self._device_tabs.setTabText(2, tr("plc.title"))
-        self._device_tabs.setTabText(3, tr("encoder.title"))
+        self._device_tabs.setTabText(2, "现场联调")
+        self._device_tabs.setTabText(3, tr("plc.title"))
+        self._device_tabs.setTabText(4, tr("encoder.title"))
 
     def _toggle_sidebar(self) -> None:
         self._sidebar_collapsed = not self._sidebar_collapsed

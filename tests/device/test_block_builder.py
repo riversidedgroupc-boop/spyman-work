@@ -17,6 +17,21 @@ def make_packet(frame_id: int, width: int = 100) -> FramePacket:
     )
 
 
+def make_packet_rows(frame_id: int, rows: int, width: int = 100) -> FramePacket:
+    data = np.vstack([
+        np.full((1, width), fill_value=(frame_id + i) % 256, dtype=np.uint8)
+        for i in range(rows)
+    ])
+    return FramePacket(
+        camera_id="TEST",
+        frame_id=frame_id,
+        encoder_count=frame_id,
+        width=width,
+        height=rows,
+        line_data=data,
+    )
+
+
 def test_block_emitted_at_correct_height():
     builder = LineScanBlockBuilder(camera_id="C1", block_height=10)
     blocks: list = []
@@ -63,3 +78,20 @@ def test_reset_clears_buffer():
     builder.reset()
     assert builder.current_row == 0
     assert builder.flush() is None
+
+
+def test_multi_line_packet_spills_into_next_block_without_dropping_rows():
+    builder = LineScanBlockBuilder(camera_id="C1", block_height=4)
+    blocks: list = []
+    builder.set_on_block(lambda b: blocks.append(b))
+
+    builder.push_line(make_packet_rows(0, rows=6, width=8))
+    partial = builder.flush()
+
+    assert len(blocks) == 1
+    assert blocks[0].image[:, 0].tolist() == [0, 1, 2, 3]
+    assert partial is not None
+    assert partial.image[:, 0].tolist() == [4, 5]
+    assert blocks[0].start_encoder_count == 0
+    assert blocks[0].end_encoder_count == 3
+    assert partial.start_encoder_count == 4

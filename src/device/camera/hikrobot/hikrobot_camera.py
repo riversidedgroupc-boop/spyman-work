@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import ctypes
 import logging
-from ctypes import c_float, cast, POINTER
+import time
+from ctypes import c_bool, cast, POINTER, c_ubyte
+from threading import Event, Thread
 from typing import override
+
+import numpy as np
 
 from src.device.camera.hikrobot.error_code import get_error_message
 from src.device.camera.hikrobot.sdk_loader import load_sdk
@@ -48,6 +52,8 @@ class HikrobotLineScanCamera(LineScanDevice):
         self._grabbing: bool = False
         self._serial: str = ""
         self._callback: Callable[[FramePacket], None] | None = None
+        self._grab_thread: Thread | None = None
+        self._stop_event = Event()
         self._line_count: int = 0
         self._last_error_code: int = 0
         self._last_error_msg: str = ""
@@ -61,6 +67,8 @@ class HikrobotLineScanCamera(LineScanDevice):
             "TriggerMode": "On",
             "TriggerSource": "Line0",
         }
+        self._int_params = {"Width", "Height", "OffsetX", "OffsetY", "LineRate", "PayloadSize"}
+        self._bool_params = {"ReverseX", "ReverseY"}
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -275,6 +283,8 @@ class HikrobotLineScanCamera(LineScanDevice):
             self._last_error_msg = "Camera not connected"
             self._last_error_code = -1
             return False
+        if self._grabbing:
+            return True
 
         try:
             from MvErrorDefine_const import MV_OK  # noqa: F811
@@ -285,6 +295,9 @@ class HikrobotLineScanCamera(LineScanDevice):
                 return False
 
             self._grabbing = True
+            self._stop_event.clear()
+            self._grab_thread = Thread(target=self._grab_loop, daemon=True)
+            self._grab_thread.start()
             self._clear_error()
             logger.info("Grabbing started")
             return True
@@ -297,11 +310,15 @@ class HikrobotLineScanCamera(LineScanDevice):
     def stop_grabbing(self) -> None:
         """Stop line scan acquisition."""
         self._grabbing = False
+        self._stop_event.set()
         try:
             if self._camera is not None:
                 self._camera.MV_CC_StopGrabbing()
         except Exception:
             pass
+        if self._grab_thread is not None:
+            self._grab_thread.join(timeout=2.0)
+            self._grab_thread = None
 
     # ------------------------------------------------------------------
     # get_status
@@ -340,10 +357,12 @@ class HikrobotLineScanCamera(LineScanDevice):
             from MvErrorDefine_const import MV_OK  # noqa: F811
 
             ret: int = MV_OK
-            if isinstance(value, bool):
+            if name in self._bool_params and isinstance(value, bool):
                 ret = self._camera.MV_CC_SetBoolValue(name, value)
             elif isinstance(value, str):
                 ret = self._camera.MV_CC_SetEnumValueByString(name, value)
+            elif name in self._int_params and isinstance(value, (int, float)):
+                ret = self._camera.MV_CC_SetIntValueEx(name, int(value))
             elif isinstance(value, (int, float)):
                 ret = self._camera.MV_CC_SetFloatValue(name, float(value))
             else:
@@ -363,11 +382,22 @@ class HikrobotLineScanCamera(LineScanDevice):
         if self._connected and self._camera is not None:
             try:
                 from MvErrorDefine_const import MV_OK  # noqa: F811
+                from CameraParams_header import MVCC_FLOATVALUE, MVCC_INTVALUE_EX  # noqa: F811
 
-                cf = c_float()
-                ret = self._camera.MV_CC_GetFloatValue(name, cf)
+                if name in self._int_params:
+                    iv = MVCC_INTVALUE_EX()
+                    ret = self._camera.MV_CC_GetIntValueEx(name, iv)
+                    if ret == MV_OK:
+                        return int(iv.nCurValue)
+                if name in self._bool_params:
+                    bv = c_bool()
+                    ret = self._camera.MV_CC_GetBoolValue(name, bv)
+                    if ret == MV_OK:
+                        return bool(bv.value)
+                fv = MVCC_FLOATVALUE()
+                ret = self._camera.MV_CC_GetFloatValue(name, fv)
                 if ret == MV_OK:
-                    return cf.value
+                    return float(fv.fCurValue)
             except Exception:
                 logger.debug("get_param(%s) from camera failed, using cached", name, exc_info=True)
 
@@ -394,3 +424,72 @@ class HikrobotLineScanCamera(LineScanDevice):
     def get_last_error(self) -> tuple[int, str]:
         """Return (error_code, error_message) tuple."""
         return (self._last_error_code, self._last_error_msg)
+
+    def _grab_loop(self) -> None:
+        """Poll MVS frames and convert them into FramePacket callbacks."""
+        try:
+            from CameraParams_header import MV_FRAME_OUT_INFO_EX  # noqa: F811
+            from MvErrorDefine_const import MV_OK  # noqa: F811
+        except Exception as e:
+            self._last_error_code = -1
+            self._last_error_msg = f"grab_loop import exception: {e}"
+            return
+
+        payload_size = int(self.get_param("PayloadSize") or 0)
+        width = int(self.get_param("Width") or self._params.get("Width", 2048))
+        height = int(self.get_param("Height") or 1)
+        buffer_size = max(payload_size, width * max(height, 1) * 2, 4096)
+        data_buf = (c_ubyte * buffer_size)()
+        frame_info = MV_FRAME_OUT_INFO_EX()
+
+        while not self._stop_event.is_set():
+            if self._camera is None:
+                break
+            ret = self._camera.MV_CC_GetOneFrameTimeout(
+                data_buf, buffer_size, frame_info, 1000
+            )
+            if ret != MV_OK:
+                self._record_error(ret, "MV_CC_GetOneFrameTimeout")
+                time.sleep(0.01)
+                continue
+
+            frame_width = int(frame_info.nExtendWidth or frame_info.nWidth or width)
+            frame_height = int(frame_info.nExtendHeight or frame_info.nHeight or 1)
+            frame_len = int(frame_info.nFrameLen or frame_info.nFrameLenEx)
+            if frame_width <= 0 or frame_height <= 0 or frame_len <= 0:
+                continue
+
+            raw = np.frombuffer(data_buf, dtype=np.uint8, count=min(frame_len, buffer_size))
+            expected = frame_width * frame_height
+            if raw.size < expected:
+                self._record_error(-1, "Frame buffer smaller than expected Mono8 image")
+                continue
+            image = raw[:expected].reshape(frame_height, frame_width).copy()
+            encoder_count = int(
+                getattr(frame_info, "nFirstLineEncoderCount", 0)
+                or frame_info.nFrameNum
+            )
+            self._line_count += frame_height
+            callback = self._callback
+            if callback is not None:
+                packet = FramePacket(
+                    camera_id=self._serial,
+                    frame_id=int(frame_info.nFrameNum),
+                    timestamp_ns=time.time_ns(),
+                    encoder_count=encoder_count,
+                    width=frame_width,
+                    height=frame_height,
+                    pixel_format=str(self._params.get("PixelFormat", "Mono8")),
+                    line_data=image,
+                    metadata={
+                        "frame_len": frame_len,
+                        "pixel_type": int(frame_info.enPixelType),
+                        "last_line_encoder_count": int(
+                            getattr(frame_info, "nLastLineEncoderCount", encoder_count)
+                        ),
+                    },
+                )
+                try:
+                    callback(packet)
+                except Exception:
+                    logger.exception("Line callback failed")

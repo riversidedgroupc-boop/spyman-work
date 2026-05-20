@@ -1,6 +1,6 @@
 [project]
 name = "copper-vision"
-version = "0.6.0"
+version = "0.7.0"
 description = "工业视觉在线检测系统 — 本地桌面版"
 requires-python = ">=3.12"
 dependencies = [

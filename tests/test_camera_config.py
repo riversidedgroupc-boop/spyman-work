@@ -126,3 +126,23 @@ def test_camera_config_v6_structured_fields(setup_db):
     assert fetched.pixel_size_um == 5.0
     assert fetched.position_desc == "right"
     assert fetched.save_ng_image is False
+
+
+def test_camera_config_v7_line_scan_fields_persist(setup_db):
+    from core.camera_config import create_camera_config, get_camera_config
+
+    spec = setup_db["spec"]
+    cfg = create_camera_config(
+        spec.spec_id,
+        camera_index=1,
+        adapter_type="hikrobot_line_scan",
+        line_rate=20000,
+        image_block_height=1024,
+        pixel_format="Mono8",
+    )
+
+    fetched = get_camera_config(cfg.config_id)
+    assert fetched.adapter_type == "hikrobot_line_scan"
+    assert fetched.line_rate == 20000
+    assert fetched.image_block_height == 1024
+    assert fetched.pixel_format == "Mono8"

@@ -77,7 +77,7 @@ class CameraConfigDialog(QDialog):
         basic_form.addRow(QLabel("Save NG image"), self._save_ng_cb)
 
         self._trigger_combo = QComboBox()
-        self._trigger_combo.addItems(["continuous", "external", "software"])
+        self._trigger_combo.addItems(["continuous", "external", "software", "On", "Off"])
         trigger_label = QLabel()
         bind(trigger_label, "camera.trigger_mode")
         basic_form.addRow(trigger_label, self._trigger_combo)
@@ -122,6 +122,25 @@ class CameraConfigDialog(QDialog):
         self._pixel_size_spin.setDecimals(3)
         self._pixel_size_spin.setSuffix(" um")
         img_form.addRow(QLabel("Pixel size"), self._pixel_size_spin)
+
+        self._line_rate_spin = QSpinBox()
+        self._line_rate_spin.setRange(0, 500000)
+        self._line_rate_spin.setValue(20000)
+        self._line_rate_spin.setSuffix(" Hz")
+        img_form.addRow(QLabel("LineRate"), self._line_rate_spin)
+
+        self._block_height_spin = QSpinBox()
+        self._block_height_spin.setRange(1, 65536)
+        self._block_height_spin.setValue(1024)
+        img_form.addRow(QLabel("Image block height"), self._block_height_spin)
+
+        self._pixel_format_combo = QComboBox()
+        self._pixel_format_combo.addItems(["Mono8", "Mono12", "BayerRG8", "BayerGB8"])
+        img_form.addRow(QLabel("PixelFormat"), self._pixel_format_combo)
+
+        self._trigger_source_combo = QComboBox()
+        self._trigger_source_combo.addItems(["Line0", "Line1", "Line2", "Line3", "Software"])
+        img_form.addRow(QLabel("TriggerSource"), self._trigger_source_combo)
 
         # ROI
         roi_widget = QWidget()
@@ -202,12 +221,23 @@ class CameraConfigDialog(QDialog):
             self._res_h_spin.setValue(cfg.resolution_height)
         if cfg.pixel_size_um is not None:
             self._pixel_size_spin.setValue(cfg.pixel_size_um)
+        if cfg.line_rate is not None:
+            self._line_rate_spin.setValue(cfg.line_rate)
+        if cfg.image_block_height is not None:
+            self._block_height_spin.setValue(cfg.image_block_height)
+        idx3 = self._pixel_format_combo.findText(cfg.pixel_format)
+        if idx3 >= 0:
+            self._pixel_format_combo.setCurrentIndex(idx3)
         try:
             roi = json.loads(cfg.roi) if cfg.roi else {}
             self._roi_x.setValue(roi.get("x", 0))
             self._roi_y.setValue(roi.get("y", 0))
             self._roi_w.setValue(roi.get("w", 0))
             self._roi_h.setValue(roi.get("h", 0))
+            trigger_source = roi.get("trigger_source", "")
+            idx4 = self._trigger_source_combo.findText(trigger_source)
+            if idx4 >= 0:
+                self._trigger_source_combo.setCurrentIndex(idx4)
         except (json.JSONDecodeError, TypeError):
             pass
         self._conn_edit.setPlainText(cfg.connection_params if cfg.connection_params != "{}" else "")
@@ -228,6 +258,7 @@ class CameraConfigDialog(QDialog):
             "y": self._roi_y.value(),
             "w": self._roi_w.value(),
             "h": self._roi_h.value(),
+            "trigger_source": self._trigger_source_combo.currentText(),
         })
         self._result_cfg = CameraConfig(
             config_id=self._existing.config_id if self._existing else "",
@@ -248,6 +279,9 @@ class CameraConfigDialog(QDialog):
             resolution_width=self._res_w_spin.value() or None,
             resolution_height=self._res_h_spin.value() or None,
             pixel_size_um=self._pixel_size_spin.value() or None,
+            line_rate=self._line_rate_spin.value() or None,
+            image_block_height=self._block_height_spin.value(),
+            pixel_format=self._pixel_format_combo.currentText(),
             position_desc=self._position_edit.text().strip(),
             save_ng_image=self._save_ng_cb.isChecked(),
             roi=roi,

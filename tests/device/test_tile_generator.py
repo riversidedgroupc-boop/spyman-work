@@ -36,6 +36,7 @@ def test_small_image_still_produces_one_tile():
     block = make_block(200, 200)
     tiles = gen.slice_block(block)
     assert len(tiles) == 1
+    assert tiles[0].image.shape == (320, 320, 3)
 
 
 def test_tile_image_is_3_channel():

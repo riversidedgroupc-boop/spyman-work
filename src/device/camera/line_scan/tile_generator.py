@@ -30,9 +30,13 @@ class TileGenerator:
         if block.image is None:
             return []
         img = block.image
-        h, w = img.shape
         if img.ndim == 2:
+            h, w = img.shape
             img = np.stack([img] * 3, axis=-1)
+        elif img.ndim == 3:
+            h, w = img.shape[:2]
+        else:
+            raise ValueError(f"block image must be 2D or 3D, got shape={img.shape}")
         tiles: list[ImageTile] = []
         y_positions = list(range(0, h - self._tile_size + 1, self._stride))
         x_positions = list(range(0, w - self._tile_size + 1, self._stride))
@@ -44,6 +48,10 @@ class TileGenerator:
         for y0 in y_positions:
             for x0 in x_positions:
                 tile_img = img[y0 : y0 + self._tile_size, x0 : x0 + self._tile_size].copy()
+                if tile_img.shape[0] != self._tile_size or tile_img.shape[1] != self._tile_size:
+                    padded = np.zeros((self._tile_size, self._tile_size, img.shape[2]), dtype=img.dtype)
+                    padded[: tile_img.shape[0], : tile_img.shape[1], :] = tile_img
+                    tile_img = padded
                 meter_start = block.start_meter + (y0 / max(h, 1)) * block_meter_range
                 meter_end = block.start_meter + ((y0 + self._tile_size) / max(h, 1)) * block_meter_range
                 tile_id = f"{block.block_id}_T_{y0:04d}_{x0:04d}"

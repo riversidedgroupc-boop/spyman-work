@@ -24,7 +24,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 # Current schema version for migration tracking
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 
 def init_db() -> None:
@@ -203,6 +203,9 @@ def init_db() -> None:
             save_ng_image INTEGER NOT NULL DEFAULT 1,
             roi TEXT NOT NULL DEFAULT '{}',
             model_binding TEXT NOT NULL DEFAULT '',
+            line_rate INTEGER,
+            image_block_height INTEGER DEFAULT 1024,
+            pixel_format TEXT NOT NULL DEFAULT 'Mono8',
             notes TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -283,6 +286,9 @@ def migrate_v6() -> None:
         "pixel_size_um": "REAL",
         "position_desc": "TEXT NOT NULL DEFAULT ''",
         "save_ng_image": "INTEGER NOT NULL DEFAULT 1",
+        "line_rate": "INTEGER",
+        "image_block_height": "INTEGER DEFAULT 1024",
+        "pixel_format": "TEXT NOT NULL DEFAULT 'Mono8'",
     }
     for col, decl in camera_columns.items():
         if col not in cc_cols:

@@ -45,4 +45,4 @@ def create_adapter(adapter_type: str) -> BaseCameraAdapter:
 def available_adapter_types() -> list[str]:
     """Return list of registered adapter type names."""
     _init_registry()
-    return sorted(_ADAPTER_REGISTRY)
+    return sorted([*_ADAPTER_REGISTRY, "line_scan", "hikrobot_line_scan"])

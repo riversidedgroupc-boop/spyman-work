@@ -1,8 +1,13 @@
-"""Production run page — multi-camera real-time detection with encoder tracking."""
+"""Production run page — multi-camera real-time detection with encoder tracking.
+
+Supports both area-scan adapters (via BaseCameraAdapter) and line-scan devices
+(via LineScanDevice + BlockBuilder).
+"""
 from __future__ import annotations
 
-import os
 import json
+import os
+from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal, QTimer
@@ -10,7 +15,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QComboBox, QGroupBox, QGridLayout, QMessageBox, QSplitter,
-    QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea, QFrame,
+    QTableWidget, QTableWidgetItem, QHeaderView,
     QSpinBox, QDoubleSpinBox,
 )
 
@@ -55,6 +60,7 @@ class ProductionRunPage(QWidget):
         self._camera_count = 0
         self._configured_adapters: dict[str, CameraConfig] = {}
         self._active_model_version = ""
+        self._run_output_root = ""
 
         self._build_ui()
         I18nManager.instance().language_changed.connect(self._refresh_text)
@@ -304,6 +310,11 @@ class ProductionRunPage(QWidget):
         if model is None:
             return
         self._active_model_version = model.model_id
+        self._run_output_root = os.path.join(
+            "outputs",
+            spec.spec_id,
+            f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        )
 
         # --- Load camera configs from DB ---
         cfgs = list_camera_configs(spec_id)
@@ -317,18 +328,18 @@ class ProductionRunPage(QWidget):
             camera_id = f"cam{idx}"
             cfg = cfg_by_index.get(idx)
             if cfg is None:
-                # Auto-create default folder_watcher config
+                # Auto-create default config based on adapter_type
                 cfg = CameraConfig(
                     config_id="", spec_id=spec_id, camera_index=idx,
                     adapter_type="folder_watcher", connection_params="{}",
                 )
 
+            atype = cfg.adapter_type or "folder_watcher"
             try:
-                # Parse connection params
-                conn = json.loads(cfg.connection_params) if cfg.connection_params else {}
-                adapter = create_adapter(cfg.adapter_type)
-                adapter.connect(conn)
-                self._acq.add_camera(camera_id, adapter)
+                if atype in ("line_scan", "hikrobot_line_scan"):
+                    self._connect_line_scan(camera_id, cfg)
+                else:
+                    self._connect_area_scan(camera_id, cfg)
                 self._configured_adapters[camera_id] = cfg
             except Exception as e:
                 QMessageBox.warning(
@@ -384,6 +395,58 @@ class ProductionRunPage(QWidget):
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
 
+    # ------------------------------------------------------------------
+    # Camera connection helpers
+    # ------------------------------------------------------------------
+
+    def _connect_area_scan(self, camera_id: str, cfg: CameraConfig) -> None:
+        """Connect a camera via the existing adapter system (area-scan / folder-watcher)."""
+        conn = json.loads(cfg.connection_params) if cfg.connection_params else {}
+        adapter = create_adapter(cfg.adapter_type)
+        adapter.connect(conn)
+        self._acq.add_camera(camera_id, adapter)
+
+    def _connect_line_scan(self, camera_id: str, cfg: CameraConfig) -> None:
+        """Connect a line-scan camera (virtual or real) with block builder."""
+        serial = cfg.serial_number or ""
+        block_height = cfg.image_block_height or 1024
+
+        # Choose device type
+        if cfg.adapter_type == "hikrobot_line_scan" and serial:
+            from src.device.camera.hikrobot.hikrobot_camera import HikrobotLineScanCamera
+            device = HikrobotLineScanCamera()
+            if not device.open(serial):
+                code, msg = device.get_last_error()
+                raise RuntimeError(f"Hikrobot open failed 0x{code:08X}: {msg}")
+            # Apply stored parameters
+            if cfg.exposure_us is not None:
+                device.set_param("ExposureTime", float(cfg.exposure_us))
+            if cfg.gain_db is not None:
+                device.set_param("Gain", float(cfg.gain_db))
+            if cfg.line_rate is not None:
+                device.set_param("LineRate", int(cfg.line_rate))
+            if cfg.pixel_format:
+                device.set_param("PixelFormat", cfg.pixel_format)
+            if cfg.trigger_mode:
+                device.set_param("TriggerMode", cfg.trigger_mode)
+            try:
+                roi = json.loads(cfg.roi) if cfg.roi else {}
+            except json.JSONDecodeError:
+                roi = {}
+            if roi.get("trigger_source"):
+                device.set_param("TriggerSource", roi["trigger_source"])
+        else:
+            from src.device.camera.simulator.virtual_line_scan import VirtualLineScanCamera
+            device = VirtualLineScanCamera(
+                width=cfg.resolution_width or 2048,
+                line_rate=float(cfg.line_rate or 20000),
+            )
+            device.open(serial or f"VIRTUAL_{camera_id}")
+
+        self._acq.add_line_scan_camera(
+            camera_id, device, block_height=block_height,
+        )
+
     def _stop(self):
         self._timer.stop()
         self._inference.stop()
@@ -421,6 +484,11 @@ class ProductionRunPage(QWidget):
         camera_id = result.get("camera_id", "")
         cfg = self._configured_adapters.get(camera_id)
         position = result.get("position_meter")
+        block = result.get("block")
+        block_id = getattr(block, "block_id", "")
+        prediction = result.get("prediction")
+        detections = getattr(prediction, "detections", []) if prediction is not None else []
+        tile_id = getattr(detections[0], "tile_id", "") if detections else ""
 
         if cfg and not cfg.save_ng_image:
             return
@@ -431,9 +499,12 @@ class ProductionRunPage(QWidget):
             batch_id="default",
             camera_id=camera_id,
             image=result.get("image"),
-            prediction=result.get("prediction"),
+            prediction=prediction,
+            output_root=self._run_output_root,
             model_version=self._active_model_version,
             position_meter=position,
+            block_id=block_id,
+            tile_id=tile_id,
         )
         self._ng_images.append(evt.ng_image_path)
         self._events.append({
@@ -467,14 +538,23 @@ class ProductionRunPage(QWidget):
             cid = st.get("camera_id", "")
             lbl = self._cam_status_labels.get(cid)
             if lbl:
-                fps = st.get("fps", 0)
-                frames = st.get("frame_count", 0)
-                pos = st.get("encoder_position_m", 0.0)
-                lbl.setText(
-                    tr("production.cam_status_fmt",
-                       cam=cid, fps=f"{fps:.1f}",
-                       frames=frames, pos=f"{pos:.2f}")
-                )
+                is_line_scan = st.get("type") == "line_scan"
+                if is_line_scan:
+                    fps = st.get("fps", 0)
+                    frames = st.get("frame_count", 0)
+                    conn = "✓" if st.get("connected") else "✗"
+                    lbl.setText(
+                        f"{cid}  行频:{fps:.0f}Hz  行数:{frames}  连接:{conn}"
+                    )
+                else:
+                    fps = st.get("fps", 0)
+                    frames = st.get("frame_count", 0)
+                    pos = st.get("encoder_position_m", 0.0)
+                    lbl.setText(
+                        tr("production.cam_status_fmt",
+                           cam=cid, fps=f"{fps:.1f}",
+                           frames=frames, pos=f"{pos:.2f}")
+                    )
 
         # Inference stats
         inf_statuses = self._inference.get_all_statuses()
@@ -491,6 +571,9 @@ class ProductionRunPage(QWidget):
             if frame is not None:
                 import cv2
                 img = frame["image"]
+                if img.ndim == 2:
+                    # Grayscale line-scan block → display as BGR
+                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
                 rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 h, w, ch = rgb.shape
                 bytes_per_line = ch * w

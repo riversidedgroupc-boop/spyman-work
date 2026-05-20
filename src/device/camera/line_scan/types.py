@@ -70,6 +70,7 @@ class LineScanImageBlock:
     image: np.ndarray | None = None  # shape: (height, width)
     timestamp_start: float = 0.0
     timestamp_end: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
