@@ -187,6 +187,31 @@ def _build_yolo_runner(model_id: str, confidence: float = 0.01) -> object | None
     return runner
 
 
+def _build_anomaly_runner(model_id: str, score_threshold: float = 0.65) -> object | None:
+    """Build an anomaly model runner from a model_version record."""
+    if not model_id:
+        return None
+    mv = get_model_version(model_id)
+    if not mv or not mv.model_path:
+        raise ValueError(f"anomaly model version is missing or has no model_path: {model_id}")
+    if mv.model_type != "patchcore":
+        raise ValueError(f"unsupported anomaly model type: {mv.model_type}")
+    if not os.path.isfile(mv.model_path):
+        raise FileNotFoundError(f"anomaly model file not found: {mv.model_path}")
+
+    from src.inference.patchcore_runner import PatchCoreRunner
+
+    runner = PatchCoreRunner(
+        {
+            "mode": "statistical",
+            "model_path": mv.model_path,
+            "score_threshold": max(0.001, min(float(score_threshold), 0.99)),
+        }
+    )
+    runner.load_model()
+    return runner
+
+
 def _ensure_field_session(config: HybridRetestConfig) -> str:
     """Return field_session_id, creating one if needed."""
     if config.field_session_id:

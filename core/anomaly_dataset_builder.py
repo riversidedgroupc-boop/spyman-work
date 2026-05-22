@@ -25,9 +25,9 @@ from typing import Callable
 from core.capture_session import get_capture_session, list_captured_images
 from core.dataset_quality import DatasetQualityChecker
 from core.dataset_version import create_dataset_version
+from core.label_policy import is_background_label, is_review_label
 
 IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
-BACKGROUND_LABELS = {"", "OK", "UNKNOWN", "INTERFERENCE", "UNCERTAIN"}
 
 
 @dataclass
@@ -67,15 +67,23 @@ def build_anomaly_dataset_from_session(
     ]
     if not rows:
         raise ValueError("no captured images found for dataset generation")
+    review_rows = [
+        r for r in rows
+        if is_review_label(r.get("classification_label", ""))
+    ]
+    if review_rows:
+        raise ValueError(
+            f"{len(review_rows)} review image(s) require final labels before anomaly dataset generation"
+        )
 
     # Separate OK vs NG
     ok_rows = [
         r for r in rows
-        if r.get("classification_label", "") in BACKGROUND_LABELS
+        if is_background_label(r.get("classification_label", ""))
     ]
     ng_rows = [
         r for r in rows
-        if r.get("classification_label", "") not in BACKGROUND_LABELS
+        if not is_background_label(r.get("classification_label", ""))
     ]
 
     if not ok_rows:

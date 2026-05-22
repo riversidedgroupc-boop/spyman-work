@@ -7,9 +7,7 @@ from typing import Any
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -28,6 +26,7 @@ from core.capture_session import (
     session_output_root,
 )
 from core.dataset_validation import validate_yolo_detection
+from core.label_policy import is_defect_label, is_review_label, needs_bbox
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import I18nManager, tr
 from desktop_app.widgets.bbox_annotation_widget import BboxAnnotationWidget
@@ -51,8 +50,9 @@ class BboxAnnotationPage(QWidget):
         self._ctx = AppContext.instance()
         self._current_session_id = ""
         self._image_paths: list[str] = []
+        self._image_labels: dict[str, str] = {}  # image_path → classification_label
         self._current_index = -1
-        self._filter_mode = "all"  # all | no_bbox | has_bbox
+        self._filter_mode = "needs_bbox"  # needs_bbox | all_defects | has_bbox | review | all
         self._filter_class: str = ""  # empty = all classes
 
         self._build_ui()
@@ -96,26 +96,41 @@ class BboxAnnotationPage(QWidget):
         left_layout.setSpacing(4)
 
         # Filter buttons
-        filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(4)
+        filter_row1 = QHBoxLayout()
+        filter_row1.setSpacing(4)
 
-        self._filter_all_btn = QPushButton(tr("bbox.filter_all"))
-        self._filter_all_btn.setCheckable(True)
-        self._filter_all_btn.setChecked(True)
-        self._filter_all_btn.clicked.connect(lambda: self._set_filter("all"))
-        filter_layout.addWidget(self._filter_all_btn)
+        self._filter_needs_bbox_btn = QPushButton(tr("bbox.filter_needs_bbox"))
+        self._filter_needs_bbox_btn.setCheckable(True)
+        self._filter_needs_bbox_btn.setChecked(True)
+        self._filter_needs_bbox_btn.clicked.connect(lambda: self._set_filter("needs_bbox"))
+        filter_row1.addWidget(self._filter_needs_bbox_btn)
 
-        self._filter_no_bbox_btn = QPushButton(tr("bbox.filter_no_bbox"))
-        self._filter_no_bbox_btn.setCheckable(True)
-        self._filter_no_bbox_btn.clicked.connect(lambda: self._set_filter("no_bbox"))
-        filter_layout.addWidget(self._filter_no_bbox_btn)
+        self._filter_all_defects_btn = QPushButton(tr("bbox.filter_all_defects"))
+        self._filter_all_defects_btn.setCheckable(True)
+        self._filter_all_defects_btn.clicked.connect(lambda: self._set_filter("all_defects"))
+        filter_row1.addWidget(self._filter_all_defects_btn)
 
         self._filter_has_bbox_btn = QPushButton(tr("bbox.filter_has_bbox"))
         self._filter_has_bbox_btn.setCheckable(True)
         self._filter_has_bbox_btn.clicked.connect(lambda: self._set_filter("has_bbox"))
-        filter_layout.addWidget(self._filter_has_bbox_btn)
+        filter_row1.addWidget(self._filter_has_bbox_btn)
 
-        left_layout.addLayout(filter_layout)
+        left_layout.addLayout(filter_row1)
+
+        filter_row2 = QHBoxLayout()
+        filter_row2.setSpacing(4)
+
+        self._filter_review_btn = QPushButton(tr("bbox.filter_review"))
+        self._filter_review_btn.setCheckable(True)
+        self._filter_review_btn.clicked.connect(lambda: self._set_filter("review"))
+        filter_row2.addWidget(self._filter_review_btn)
+
+        self._filter_all_btn = QPushButton(tr("bbox.filter_all"))
+        self._filter_all_btn.setCheckable(True)
+        self._filter_all_btn.clicked.connect(lambda: self._set_filter("all"))
+        filter_row2.addWidget(self._filter_all_btn)
+
+        left_layout.addLayout(filter_row2)
 
         # Class filter combo
         class_filter_layout = QHBoxLayout()
@@ -221,6 +236,7 @@ class BboxAnnotationPage(QWidget):
             return
 
         paths: list[str] = []
+        labels: dict[str, str] = {}
         output_root = session.output_dir or session_output_root(session.project_id)
         raw_dir = os.path.join(output_root, session_id, "raw")
 
@@ -240,8 +256,13 @@ class BboxAnnotationPage(QWidget):
             image_path = image.get("image_path", "")
             if image_path and os.path.isfile(image_path) and image_path not in paths:
                 paths.append(image_path)
+            if image_path:
+                label = image.get("classification_label", "")
+                if label:
+                    labels[image_path] = label
 
         self._image_paths = paths
+        self._image_labels = labels
         self._current_index = 0 if paths else -1
         self._rebuild_class_filter()
         self._rebuild_image_list()
@@ -288,12 +309,12 @@ class BboxAnnotationPage(QWidget):
                     parts = line.split()
                     if len(parts) >= 5:
                         class_id = int(parts[0])
-                        # Look up class name from label options
                         from desktop_app.label_config import load_label_options
-                        BACKGROUND_VALUES = {"OK", "UNKNOWN", "INTERFERENCE", "UNCERTAIN", "IGNORE"}
+                        from core.label_policy import is_background_label, is_review_label
+
                         opts = [
                             o for o in load_label_options()
-                            if o.value.upper() not in BACKGROUND_VALUES and o.value.strip()
+                            if not is_background_label(o.value) and not is_review_label(o.value) and o.value.strip()
                         ]
                         if 0 <= class_id < len(opts):
                             return opts[class_id].label
@@ -312,9 +333,11 @@ class BboxAnnotationPage(QWidget):
 
     def _set_filter(self, mode: str) -> None:
         self._filter_mode = mode
-        self._filter_all_btn.setChecked(mode == "all")
-        self._filter_no_bbox_btn.setChecked(mode == "no_bbox")
+        self._filter_needs_bbox_btn.setChecked(mode == "needs_bbox")
+        self._filter_all_defects_btn.setChecked(mode == "all_defects")
         self._filter_has_bbox_btn.setChecked(mode == "has_bbox")
+        self._filter_review_btn.setChecked(mode == "review")
+        self._filter_all_btn.setChecked(mode == "all")
         self._rebuild_image_list()
 
     def _has_bbox(self, image_path: str) -> bool:
@@ -333,15 +356,37 @@ class BboxAnnotationPage(QWidget):
         return False
 
     def _get_filtered_paths(self) -> list[str]:
-        """Return image paths matching current filter."""
+        """Return image paths matching current filter mode and class."""
         filtered: list[str] = []
         for path in self._image_paths:
-            # Bbox filter
-            if self._filter_mode == "no_bbox" and self._has_bbox(path):
-                continue
-            if self._filter_mode == "has_bbox" and not self._has_bbox(path):
-                continue
-            # Class filter
+            label = self._image_labels.get(path, "")
+            has_bbox = self._has_bbox(path)
+
+            # Classification-driven filter modes
+            if self._filter_mode == "needs_bbox":
+                # Only NG/defect images that don't yet have bbox
+                if not needs_bbox(label) or has_bbox:
+                    continue
+            elif self._filter_mode == "all_defects":
+                # All NG/defect images regardless of bbox status
+                if not is_defect_label(label):
+                    continue
+            elif self._filter_mode == "has_bbox":
+                # Defect images that already have bbox
+                if not is_defect_label(label) or not has_bbox:
+                    continue
+            elif self._filter_mode == "review":
+                # UNKNOWN / UNCERTAIN images
+                if not is_review_label(label):
+                    continue
+            elif self._filter_mode == "all":
+                pass  # No filter — show everything
+            else:
+                # Legacy compatibility: "no_bbox" treated as "needs_bbox"
+                if self._filter_mode == "no_bbox" and has_bbox:
+                    continue
+
+            # Class filter (bbox class name, unchanged)
             if self._filter_class:
                 cls_name = self._get_bbox_class_name(path)
                 if cls_name != self._filter_class:
@@ -360,12 +405,29 @@ class BboxAnnotationPage(QWidget):
         filtered = self._get_filtered_paths()
         for path in filtered:
             basename = os.path.basename(path)
+            label = self._image_labels.get(path, "")
             has_bbox = self._has_bbox(path)
-            prefix = "◆ " if has_bbox else "◇ "
-            item = QListWidgetItem(prefix + basename)
+
+            # Icon prefix: ◇ defect/no bbox, ◆ defect/has bbox, ? review
+            if is_review_label(label):
+                prefix = "? "
+            elif has_bbox:
+                prefix = "◆ "
+            else:
+                prefix = "◇ "
+
+            # Show label after filename
+            display_text = f"{prefix}{basename}    {label}" if label else f"{prefix}{basename}"
+            item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, path)
-            if has_bbox:
+
+            # Color coding
+            if is_review_label(label):
+                item.setForeground(Qt.GlobalColor.yellow)
+            elif has_bbox:
                 item.setForeground(Qt.GlobalColor.green)
+            # else: no bbox defect = default (white)
+
             self._image_list.addItem(item)
 
         self._image_list.blockSignals(False)
@@ -512,7 +574,7 @@ class BboxAnnotationPage(QWidget):
             QMessageBox.warning(
                 self,
                 tr("app.warning"),
-                f"✗ 校验失败\n\n"
+                "✗ 校验失败\n\n"
                 + result.summary(),
             )
 

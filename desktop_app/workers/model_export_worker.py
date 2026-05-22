@@ -11,9 +11,9 @@ class ModelExportWorker(QThread):
     config: dict with model_id, output_dir, imgsz, precision, etc.
     """
 
-    finished = Signal()
-    progress = Signal()
-    error = Signal()
+    finished = Signal(object)
+    progress = Signal(str)
+    error = Signal(str)
 
     def __init__(
         self,

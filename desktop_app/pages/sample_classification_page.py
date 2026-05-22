@@ -38,6 +38,7 @@ from core.capture_session import (
     set_image_classification,
     set_session_task_type,
 )
+from core.label_policy import is_defect_label, is_review_label
 from desktop_app.app_context import AppContext
 from desktop_app.display import class_label, session_status_label
 from desktop_app.i18n import I18nManager, tr
@@ -311,17 +312,65 @@ class SampleClassificationPage(QWidget):
         }
         self._task_hint_label.setText(hints.get(task_type, ""))
         self._open_bbox_btn.setVisible(task_type == "yolo_detection")
+        self._update_open_bbox_btn_text()
+
+    def _update_open_bbox_btn_text(self) -> None:
+        """Update the bbox button text with pending counts."""
+        if not self._image_paths:
+            self._open_bbox_btn.setText(tr("bbox.open_bbox"))
+            return
+        needs_bbox_count = 0
+        has_bbox_count = 0
+        review_count = 0
+        for path in self._image_paths:
+            label = self._labels.get(path, "")
+            if is_defect_label(label):
+                if self._has_bbox_sidecar(path):
+                    has_bbox_count += 1
+                else:
+                    needs_bbox_count += 1
+            elif is_review_label(label):
+                review_count += 1
+        parts: list[str] = []
+        if needs_bbox_count:
+            parts.append(f"{needs_bbox_count} 待标")
+        if has_bbox_count:
+            parts.append(f"{has_bbox_count} 已标")
+        if review_count:
+            parts.append(f"{review_count} 待复核")
+        if parts:
+            self._open_bbox_btn.setText(f"进入 bbox 标注：{' / '.join(parts)}")
+        else:
+            self._open_bbox_btn.setText(tr("bbox.open_bbox"))
+
+    @staticmethod
+    def _has_bbox_sidecar(image_path: str) -> bool:
+        """Check if a YOLO .txt sidecar file exists with at least one bbox."""
+        import os as _os
+        stem, _ = _os.path.splitext(image_path)
+        txt_path = stem + ".txt"
+        if not _os.path.isfile(txt_path):
+            return False
+        try:
+            with open(txt_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and len(line.split()) >= 5:
+                        return True
+        except Exception:
+            return False
+        return False
 
     def _open_bbox_annotation(self) -> None:
-        """Navigate to the bbox annotation page tab."""
-        # Find the parent main window and switch to bbox annotation
+        """Navigate to the bbox annotation page tab, defaulting to needs_bbox filter."""
         parent = self.window()
         if hasattr(parent, "_data_tabs"):
-            # The bbox annotation page is at index 2 in data_tabs
             parent._data_tabs.setCurrentIndex(2)
-        # Also trigger the capture nav selection to show data container
         if hasattr(parent, "_on_page_selected"):
             parent._on_page_selected("capture")
+        # Set bbox page to "needs_bbox" filter mode
+        if hasattr(parent, "_bbox_page"):
+            parent._bbox_page._set_filter("needs_bbox")
 
     def _load_images(self, session_id: str) -> None:
         session = get_capture_session(session_id)
@@ -467,6 +516,7 @@ class SampleClassificationPage(QWidget):
             widget = self._stat_labels.get(value)
             if widget:
                 widget.setText(str(count))
+        self._update_open_bbox_btn_text()
 
     def _navigate(self, delta: int) -> None:
         if not self._image_paths:

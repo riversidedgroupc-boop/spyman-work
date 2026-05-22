@@ -1,11 +1,7 @@
 """Tests for core.dataset_validation — YOLO detection / classification / anomaly validation."""
 from __future__ import annotations
 
-import json
-import os
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock
 
 from core.dataset_validation import (
     DatasetValidationResult,
@@ -37,7 +33,7 @@ def test_is_ng_label():
 
 def test_is_ok_label():
     assert _is_ok_label("OK") is True
-    assert _is_ok_label("unknown") is True
+    assert _is_ok_label("unknown") is False
     assert _is_ok_label("INTERFERENCE") is True
     assert _is_ok_label("裂纹") is False
     assert _is_ok_label("") is True
@@ -214,6 +210,36 @@ def test_yolo_validation_ng_has_bbox(
     assert result.can_train is True
 
 
+def test_yolo_validation_review_label_blocks_training(tmp_path, monkeypatch):
+    """UNKNOWN/UNCERTAIN must be reviewed before YOLO training."""
+    img_ok = tmp_path / "ok.png"
+    img_ok.write_text("")
+    img_review = tmp_path / "unknown.png"
+    img_review.write_text("")
+    img_ng = tmp_path / "ng.png"
+    img_ng.write_text("")
+    (tmp_path / "ng.txt").write_text("0 0.5 0.5 0.2 0.2\n")
+
+    rows = [
+        _img_row("OK", str(img_ok)),
+        _img_row("UNKNOWN", str(img_review)),
+        _img_row("裂纹", str(img_ng)),
+    ]
+    monkeypatch.setattr(
+        "core.dataset_validation.get_capture_session",
+        lambda sid: MagicMock(dataset_task_type="yolo_detection"),
+    )
+    monkeypatch.setattr(
+        "core.dataset_validation.list_captured_images",
+        lambda sid: rows,
+    )
+
+    result = validate_yolo_detection("SESS_TEST")
+    assert result.review_images == 1
+    assert result.can_train is False
+    assert any("review image" in e for e in result.errors)
+
+
 def test_yolo_validation_no_ok_warns(tmp_path, monkeypatch):
     """All NG with bbox but no OK → can train but warns."""
     img_ng = tmp_path / "ng.png"
@@ -248,8 +274,10 @@ def test_yolo_validation_session_not_found(monkeypatch):
 # ── validate_image_classification ──────────────────────────────────
 
 def test_cls_validation_all_labeled_two_classes(tmp_path, monkeypatch):
-    img1 = tmp_path / "a.png"; img1.write_text("")
-    img2 = tmp_path / "b.png"; img2.write_text("")
+    img1 = tmp_path / "a.png"
+    img1.write_text("")
+    img2 = tmp_path / "b.png"
+    img2.write_text("")
     rows = [
         _img_row("裂纹", str(img1)),
         _img_row("OK", str(img2)),
@@ -269,8 +297,10 @@ def test_cls_validation_all_labeled_two_classes(tmp_path, monkeypatch):
 
 
 def test_cls_validation_unlabeled_blocks(tmp_path, monkeypatch):
-    img1 = tmp_path / "a.png"; img1.write_text("")
-    img2 = tmp_path / "b.png"; img2.write_text("")
+    img1 = tmp_path / "a.png"
+    img1.write_text("")
+    img2 = tmp_path / "b.png"
+    img2.write_text("")
     rows = [
         _img_row("裂纹", str(img1)),
         _img_row("", str(img2)),
@@ -290,8 +320,10 @@ def test_cls_validation_unlabeled_blocks(tmp_path, monkeypatch):
 
 
 def test_cls_validation_single_class_blocks(tmp_path, monkeypatch):
-    img1 = tmp_path / "a.png"; img1.write_text("")
-    img2 = tmp_path / "b.png"; img2.write_text("")
+    img1 = tmp_path / "a.png"
+    img1.write_text("")
+    img2 = tmp_path / "b.png"
+    img2.write_text("")
     rows = [
         _img_row("OK", str(img1)),
         _img_row("OK", str(img2)),
@@ -385,7 +417,8 @@ def test_anomaly_validation_no_ng_warns(tmp_path, monkeypatch):
 
 def test_validate_dataset_dispatches_by_session_task_type(tmp_path, monkeypatch):
     """validate_dataset reads task_type from session if not provided."""
-    img = tmp_path / "img.png"; img.write_text("")
+    img = tmp_path / "img.png"
+    img.write_text("")
     rows = [_img_row("OK", str(img))]
 
     monkeypatch.setattr(
@@ -402,7 +435,8 @@ def test_validate_dataset_dispatches_by_session_task_type(tmp_path, monkeypatch)
 
 
 def test_validate_dataset_explicit_task_type(tmp_path, monkeypatch):
-    img = tmp_path / "img.png"; img.write_text("")
+    img = tmp_path / "img.png"
+    img.write_text("")
     rows = [_img_row("OK", str(img))]
 
     monkeypatch.setattr(

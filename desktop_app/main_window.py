@@ -215,6 +215,8 @@ class MainWindow(QMainWindow):
         self._selector.customer_changed.connect(self._on_context_changed)
         self._selector.project_changed.connect(self._on_context_changed)
         self._selector.spec_changed.connect(self._on_context_changed)
+        # Training completion auto-refreshes model version history.
+        self._training_page.data_changed.connect(self._model_version_page.refresh)
 
     def _refresh_text(self, lang: str = "") -> None:
         """Re-set tab labels on language change."""

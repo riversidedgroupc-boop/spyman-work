@@ -10,10 +10,10 @@ from typing import Callable
 from core.capture_session import get_capture_session, list_captured_images
 from core.dataset_quality import DatasetQualityChecker
 from core.dataset_version import create_dataset_version
+from core.label_policy import is_defect_label, is_review_label
 
 
 IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
-BACKGROUND_LABELS = {"", "OK", "UNKNOWN", "INTERFERENCE", "UNCERTAIN"}
 
 
 @dataclass
@@ -56,6 +56,14 @@ def build_yolo_dataset_from_session(
     ]
     if not rows:
         raise ValueError("no captured images found for dataset generation")
+    review_rows = [
+        r for r in rows
+        if is_review_label(r.get("classification_label", ""))
+    ]
+    if review_rows:
+        raise ValueError(
+            f"{len(review_rows)} review image(s) require final labels before YOLO dataset generation"
+        )
 
     _report(progress_callback, "creating directories...", 0.05)
     os.makedirs(dataset_dir, exist_ok=True)
@@ -66,7 +74,7 @@ def build_yolo_dataset_from_session(
     class_names = sorted({
         r.get("classification_label", "")
         for r in rows
-        if r.get("classification_label", "") not in BACKGROUND_LABELS
+        if is_defect_label(r.get("classification_label", ""))
     }) or ["defect"]
 
     label_file_count = 0
@@ -98,7 +106,7 @@ def build_yolo_dataset_from_session(
             label_file_count += 1
         else:
             open(dst_label, "w", encoding="utf-8").close()
-            if row.get("classification_label", "") not in BACKGROUND_LABELS:
+            if is_defect_label(row.get("classification_label", "")):
                 missing_bbox_count += 1
 
         if index % max(1, total // 20) == 0:

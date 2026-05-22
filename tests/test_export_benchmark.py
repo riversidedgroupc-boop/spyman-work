@@ -468,9 +468,6 @@ def test_run_benchmark_integration(bench_ctx: dict[str, str], monkeypatch):
     from core.export_benchmark import run_benchmark
 
     # ── Build predictable fake detections ──────────────────────────────────
-    # Image 1: source detects 1 box, candidate detects a slightly shifted box
-    # Image 2: source detects 1 box, candidate also 1 box (nearly same)
-    # Image 3: source detects nothing, candidate detects nothing → both OK
     det_map_src = {
         "img1.png": [_make_det("img1.png", bbox=[0, 0, 100, 100], confidence=0.9)],
         "img2.png": [_make_det("img2.png", bbox=[50, 50, 200, 200], confidence=0.7)],
@@ -485,7 +482,6 @@ def test_run_benchmark_integration(bench_ctx: dict[str, str], monkeypatch):
     fake_src = FakeBenchRunner(runner_name="yolo", detections_map=det_map_src)
     fake_cand = FakeBenchRunner(runner_name="onnx", detections_map=det_map_cand)
 
-    # Patch YoloModelRunner class to return our fake source runner
     class _MockYoloClass:
         def __init__(self, model_path: str = "", config: dict | None = None) -> None:
             pass
@@ -504,7 +500,6 @@ def test_run_benchmark_integration(bench_ctx: dict[str, str], monkeypatch):
         lambda export_id, **kwargs: fake_cand,
     )
 
-    # ── Create temp image dir ──────────────────────────────────────────────
     tmp = tempfile.mkdtemp()
     try:
         _make_image_files(tmp, ["img1.png", "img2.png", "img3.png"])
@@ -513,13 +508,14 @@ def test_run_benchmark_integration(bench_ctx: dict[str, str], monkeypatch):
             source_model_id=bench_ctx["model_id"],
             candidate_export_id=bench_ctx["export_id"],
             image_dir=tmp,
+            report_dir=tmp,
         )
 
         assert result.image_count == 3
-        assert result.decision_match_rate == 1.0  # all 3 images agree
-        assert result.mean_bbox_iou > 0.9  # boxes are very close
-        assert result.mean_confidence_delta > 0.0  # conf deltas exist
-        assert result.recommended is True  # meets all thresholds with fast fake runners
+        assert result.decision_match_rate == 1.0
+        assert result.mean_bbox_iou > 0.9
+        assert result.mean_confidence_delta > 0.0
+        assert result.recommended is True
         assert isinstance(result.avg_latency_ms, float)
         assert isinstance(result.p95_latency_ms, float)
         assert isinstance(result.p99_latency_ms, float)
@@ -571,6 +567,7 @@ def test_run_benchmark_decision_mismatch_produces_correct_rate(
             source_model_id=bench_ctx["model_id"],
             candidate_export_id=bench_ctx["export_id"],
             image_dir=tmp,
+            report_dir=tmp,
         )
         assert result.image_count == 2
         assert result.decision_match_rate == 0.5  # 1/2 match
@@ -686,6 +683,7 @@ def test_run_benchmark_no_matched_detections(
             source_model_id=bench_ctx["model_id"],
             candidate_export_id=bench_ctx["export_id"],
             image_dir=tmp,
+            report_dir=tmp,
         )
         assert result.mean_bbox_iou == 0.0
         assert result.mean_confidence_delta == 0.0
@@ -813,6 +811,7 @@ def test_recommended_false_when_decision_rate_below_099(bench_ctx: dict[str, str
             source_model_id=bench_ctx["model_id"],
             candidate_export_id=bench_ctx["export_id"],
             image_dir=tmp,
+            report_dir=tmp,
         )
         assert result.decision_match_rate < 0.99
         assert result.recommended is False

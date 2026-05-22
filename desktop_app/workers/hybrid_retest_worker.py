@@ -5,6 +5,7 @@ from PySide6.QtCore import QThread, Signal
 
 from core.hybrid_retest import (
     HybridRetestConfig,
+    _build_anomaly_runner,
     _build_yolo_runner,
     run_hybrid_retest,
 )
@@ -44,11 +45,17 @@ class HybridRetestWorker(QThread):
                     self._config.yolo_model_id,
                     confidence=self._config.yolo_conf_threshold,
                 )
+            anomaly_runner = self._anomaly_runner
+            if anomaly_runner is None and self._config.anomaly_model_id:
+                anomaly_runner = _build_anomaly_runner(
+                    self._config.anomaly_model_id,
+                    score_threshold=self._config.anomaly_score_threshold,
+                )
 
             result = run_hybrid_retest(
                 config=self._config,
                 yolo_runner=yolo_runner,
-                anomaly_runner=self._anomaly_runner,
+                anomaly_runner=anomaly_runner,
                 progress_callback=self._on_progress,
             )
             if not self._cancelled:

@@ -71,3 +71,41 @@ def test_patchcore_mock_score_is_stable_for_same_path():
     second = runner.predict("sample.jpg").anomaly.image_score
 
     assert first == second
+
+
+def test_patchcore_runner_loads_statistical_json_model(tmp_path):
+    import cv2
+    import numpy as np
+
+    model_path = tmp_path / "patchcore_model.json"
+    image_path = tmp_path / "sample.png"
+    image = np.full((16, 16, 3), 128, dtype=np.uint8)
+    assert cv2.imwrite(str(image_path), image)
+
+    model_path.write_text(
+        """
+        {
+          "model_type": "patchcore",
+          "feature_backend": "statistical_patch_features",
+          "image_size": 16,
+          "threshold": 0.25,
+          "coreset": [[0.5, 0.0, 0.5, 0.5, 0.5, 0.0,
+                       0.0, 0.0, 0.0, 0.0, 0.501960813999176, 0.0,
+                       0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0,
+                       0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0,
+                       0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0,
+                       0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0]]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    runner = PatchCoreRunner({"mode": "statistical", "model_path": str(model_path)})
+    runner.load_model()
+    prediction = runner.predict(image_path)
+    image_prediction = runner.predict_image(image_path)
+
+    assert runner.is_loaded is True
+    assert prediction.model_name == "patchcore"
+    assert prediction.anomaly.image_score < 0.1
+    assert image_prediction.image_score == prediction.anomaly.image_score

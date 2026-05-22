@@ -72,6 +72,7 @@ def run_benchmark(
     confidence: float = 0.5,
     iou: float = 0.45,
     image_size: int = 640,
+    report_dir: str = "",
 ) -> BenchmarkResult:
     """Run both the source model (PyTorch) and candidate export on all images.
 
@@ -89,6 +90,9 @@ def run_benchmark(
         NMS IoU threshold.
     image_size : int
         Input resize dimension in pixels.
+    report_dir : str
+        Optional directory for benchmark_report.json. When empty, the report is
+        written next to the candidate artifact if that directory exists.
 
     Returns
     -------
@@ -204,15 +208,33 @@ def run_benchmark(
     )
 
     # ── 9. Save report ──────────────────────────────────────────────────────
-    if candidate.artifact_path:
-        report_dir = os.path.dirname(candidate.artifact_path)
-        if report_dir:
-            os.makedirs(report_dir, exist_ok=True)
-            report_path = os.path.join(report_dir, "benchmark_report.json")
-            with open(report_path, "w", encoding="utf-8") as f:
-                json.dump(result.to_dict(), f, indent=2, ensure_ascii=False)
+    _save_benchmark_report(result, candidate.artifact_path, report_dir)
 
     return result
+
+
+def _save_benchmark_report(
+    result: BenchmarkResult,
+    artifact_path: str,
+    report_dir: str = "",
+) -> str:
+    """Save benchmark report JSON; return the path written (empty if skipped)."""
+    if report_dir:
+        os.makedirs(report_dir, exist_ok=True)
+        report_path = os.path.join(report_dir, "benchmark_report.json")
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(result.to_dict(), f, indent=2, ensure_ascii=False)
+        return report_path
+
+    if artifact_path:
+        art_dir = os.path.dirname(artifact_path)
+        if art_dir and os.path.isdir(art_dir):
+            report_path = os.path.join(art_dir, "benchmark_report.json")
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(result.to_dict(), f, indent=2, ensure_ascii=False)
+            return report_path
+
+    return ""
 
 
 # ── Internal helpers ────────────────────────────────────────────────────────────

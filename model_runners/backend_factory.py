@@ -6,7 +6,12 @@ from enum import Enum
 from typing import Any
 
 from core.export_environment import detect_export_environment
-from core.model_export import get_export_artifact, list_export_artifacts
+from core.model_export import (
+    create_export_artifact,
+    get_export_artifact,
+    list_export_artifacts,
+    update_export_artifact,
+)
 
 
 class RuntimeBackend(str, Enum):
@@ -105,9 +110,42 @@ def create_runner_for_artifact(
             image_size=image_size,
         )
         runner.load()
+        # Phase E: TensorRT inference pipeline is not yet implemented.
+        # The engine loads correctly, but predict_image() raises NotImplementedError.
+        # Return None so callers fall back to ONNX/PyTorch instead of crashing.
+        if not getattr(runner, "can_predict", True):
+            return None
         return runner
 
     return None
+
+
+def _fallback_to_source_pt(
+    source_model_id: str,
+    artifacts: list[Any],
+) -> tuple[str | None, str]:
+    """Try to use the original .pt model when no export artifact exists."""
+    from core.model_version import get_model_version
+    import os as _os
+
+    mv = get_model_version(source_model_id)
+    if mv and mv.model_path and _os.path.isfile(mv.model_path):
+        # Check if a PyTorch artifact already exists
+        for a in artifacts:
+            if a.backend == "pytorch":
+                update_export_artifact(a.export_id, artifact_path=mv.model_path, status="completed")
+                return (a.export_id, "Selected PyTorch (original .pt, existing artifact)")
+        # Create a new PyTorch artifact pointing to the original .pt
+        art = create_export_artifact(
+            project_id=mv.project_id,
+            source_model_id=source_model_id,
+            backend="pytorch",
+            precision="fp32",
+            artifact_path=mv.model_path,
+            status="completed",
+        )
+        return (art.export_id, "Selected PyTorch (original .pt fallback)")
+    return (None, "No completed export artifacts and no source .pt model found")
 
 
 def select_best_backend(
@@ -137,7 +175,11 @@ def select_best_backend(
     completed = [a for a in artifacts if a.status == "completed"]
 
     if not completed:
-        return (None, "No completed export artifacts")
+        # Fallback: use the original .pt source model via PyTorch backend
+        try:
+            return _fallback_to_source_pt(source_model_id, artifacts)
+        except Exception:
+            return (None, "No completed export artifacts")
 
     # Detect environment once
     env_gpu = detect_export_environment().gpu_name or ""

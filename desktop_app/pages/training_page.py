@@ -8,6 +8,7 @@ from datetime import datetime
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QDoubleSpinBox,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -30,6 +31,7 @@ from core.training_job import create_training_job
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import tr, bind, I18nManager
 from desktop_app.workers.training_worker import TrainingWorker
+from desktop_app.workers.anomaly_training_worker import AnomalyTrainingWorker
 
 
 def yolo_missing_bbox_message(missing_bbox_count: int) -> str:
@@ -154,6 +156,37 @@ class TrainingPage(QWidget):
         self._anomaly_placeholder.hide()
         layout.addWidget(self._anomaly_placeholder)
 
+        # ── Anomaly detection training parameters ──
+        self._anomaly_param_group = QGroupBox("PatchCore 训练参数")
+        anomaly_form = QFormLayout(self._anomaly_param_group)
+
+        self._anomaly_backbone_combo = QComboBox()
+        self._anomaly_backbone_combo.addItems(["wide_resnet50_2", "resnet18", "resnet50"])
+        self._set_field_width(self._anomaly_backbone_combo)
+        anomaly_form.addRow("Backbone:", self._anomaly_backbone_combo)
+
+        self._anomaly_imgsz_spin = QSpinBox()
+        self._anomaly_imgsz_spin.setRange(128, 1024)
+        self._anomaly_imgsz_spin.setValue(256)
+        self._anomaly_imgsz_spin.setSingleStep(32)
+        self._set_field_width(self._anomaly_imgsz_spin)
+        anomaly_form.addRow("Image Size:", self._anomaly_imgsz_spin)
+
+        self._anomaly_coreset_spin = QDoubleSpinBox()
+        self._anomaly_coreset_spin.setRange(0.01, 1.0)
+        self._anomaly_coreset_spin.setValue(0.1)
+        self._anomaly_coreset_spin.setSingleStep(0.05)
+        self._set_field_width(self._anomaly_coreset_spin)
+        anomaly_form.addRow("Coreset Ratio:", self._anomaly_coreset_spin)
+
+        self._anomaly_device_combo = QComboBox()
+        self._anomaly_device_combo.addItems(["cpu", "cuda:0"])
+        self._set_field_width(self._anomaly_device_combo)
+        anomaly_form.addRow("Device:", self._anomaly_device_combo)
+
+        self._anomaly_param_group.hide()
+        layout.addWidget(self._anomaly_param_group)
+
         monitor_group = QGroupBox("训练监控")
         monitor_layout = QVBoxLayout(monitor_group)
         monitor_grid = QGridLayout()
@@ -224,6 +257,10 @@ class TrainingPage(QWidget):
                     self._session_combo.addItem(
                         f"[现场首训] {dv.version_name or dv.version_id}", dv.version_id
                     )
+                elif dv.source_type == "anomaly":
+                    self._session_combo.addItem(
+                        f"[异常检测] {dv.version_name or dv.version_id}", dv.version_id
+                    )
 
     def _on_session_selected(self, _index: int) -> None:
         """When a data source is selected, read its type and update UI."""
@@ -231,6 +268,7 @@ class TrainingPage(QWidget):
         if not sid:
             self._task_type_label.setText("")
             self._show_yolo_params(True)
+            self._show_anomaly_params(False)
             self._cls_placeholder.hide()
             self._anomaly_placeholder.hide()
             return
@@ -238,16 +276,26 @@ class TrainingPage(QWidget):
         # Phase C: dataset_version entries
         is_dataset_version = isinstance(sid, str) and sid.startswith("DSVER_")
         if is_dataset_version:
-            self._task_type_label.setText("YOLO 检测 (现场首训)")
-            self._show_yolo_params(True)
-            self._cls_placeholder.hide()
-            self._anomaly_placeholder.hide()
-            self._start_btn.setEnabled(True)
-            self._start_btn.setToolTip("")
-            # Show dataset path from version record
             dv = get_dataset_version(sid)
-            if dv:
-                self._ds_path_label.setText(dv.yaml_path or dv.dataset_path)
+            if dv and dv.source_type == "anomaly":
+                self._task_type_label.setText("PatchCore 异常检测")
+                self._show_yolo_params(False)
+                self._show_anomaly_params(True)
+                self._cls_placeholder.hide()
+                self._anomaly_placeholder.hide()
+                self._start_btn.setEnabled(True)
+                self._start_btn.setToolTip("")
+                self._ds_path_label.setText(dv.dataset_path)
+            else:
+                self._task_type_label.setText("YOLO 检测 (现场首训)")
+                self._show_yolo_params(True)
+                self._show_anomaly_params(False)
+                self._cls_placeholder.hide()
+                self._anomaly_placeholder.hide()
+                self._start_btn.setEnabled(True)
+                self._start_btn.setToolTip("")
+                if dv:
+                    self._ds_path_label.setText(dv.yaml_path or dv.dataset_path)
             return
 
         task_type = get_session_task_type(sid) or "yolo_detection"  # default to YOLO for backward compat
@@ -262,6 +310,7 @@ class TrainingPage(QWidget):
         # Show/hide appropriate parameter panels
         is_yolo = task_type in ("yolo_detection", "")
         self._show_yolo_params(is_yolo)
+        self._show_anomaly_params(task_type == "anomaly_detection")
         self._cls_placeholder.setVisible(task_type == "image_classification")
         self._anomaly_placeholder.setVisible(task_type == "anomaly_detection")
 
@@ -270,8 +319,8 @@ class TrainingPage(QWidget):
             self._start_btn.setEnabled(False)
             self._start_btn.setToolTip("整图分类训练暂未实现")
         elif task_type == "anomaly_detection":
-            self._start_btn.setEnabled(False)
-            self._start_btn.setToolTip("异常检测训练暂未实现")
+            self._start_btn.setEnabled(True)
+            self._start_btn.setToolTip("")
         else:
             self._start_btn.setEnabled(True)
             self._start_btn.setToolTip("")
@@ -297,6 +346,10 @@ class TrainingPage(QWidget):
                 w.setVisible(visible)
                 break
 
+    def _show_anomaly_params(self, visible: bool) -> None:
+        """Show or hide PatchCore-specific training parameter widgets."""
+        self._anomaly_param_group.setVisible(visible)
+
     def _start_training(self):
         pid = self._ctx.current_project_id
         if not pid:
@@ -315,6 +368,57 @@ class TrainingPage(QWidget):
             if not dv:
                 QMessageBox.warning(self, tr("app.error"), "数据集版本未找到")
                 return
+
+            # Anomaly detection dataset
+            if dv.source_type == "anomaly":
+                job_name = self._job_name_edit.text().strip() or f"train_anomaly_{dv.version_id[:20]}"
+                date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_dir = os.path.join("outputs", "train_anomaly", f"{job_name}_{date_str}")
+
+                training_config = {
+                    "backbone": self._anomaly_backbone_combo.currentText(),
+                    "image_size": self._anomaly_imgsz_spin.value(),
+                    "coreset_sampling_ratio": self._anomaly_coreset_spin.value(),
+                    "device": self._anomaly_device_combo.currentText(),
+                    "source_type": "anomaly",
+                    "dataset_version_id": dv.version_id,
+                }
+                job = create_training_job(
+                    project_id=pid, spec_id=self._ctx.current_spec_id or "",
+                    job_name=job_name, dataset_path=dv.dataset_path,
+                    base_model=self._anomaly_backbone_combo.currentText(),
+                    training_config=json.dumps(training_config),
+                )
+                self._worker = AnomalyTrainingWorker(
+                    job_id=job.job_id,
+                    dataset_path=dv.dataset_path,
+                    output_dir=output_dir,
+                    device=self._anomaly_device_combo.currentText(),
+                    backbone=self._anomaly_backbone_combo.currentText(),
+                    image_size=self._anomaly_imgsz_spin.value(),
+                    coreset_sampling_ratio=self._anomaly_coreset_spin.value(),
+                    dataset_version_id=dv.version_id,
+                    spec_id=self._ctx.current_spec_id or "",
+                )
+                self._worker.message.connect(self._on_message)
+                self._worker.progress.connect(self._on_progress)
+                self._worker.log_line.connect(self._append_log_line)
+                self._worker.finished.connect(self._on_finished)
+                self._worker.error.connect(self._on_error)
+                self._monitor_state.setText("训练中")
+                self._monitor_state.setStyleSheet("color: #ff9800; font-weight: bold;")
+                self._monitor_job.setText(f"{job.job_name} ({job.job_id})")
+                self._monitor_epoch.setText("0/0")
+                self._monitor_message.setText("准备启动 PatchCore 训练")
+                self._log_view.clear()
+                self._progress.setRange(0, 100)
+                self._progress.setValue(0)
+                self._start_btn.setEnabled(False)
+                self._stop_btn.setEnabled(True)
+                self._worker.start()
+                return
+
+            # YOLO field_reviews dataset
             if not dv.yaml_path or not os.path.isfile(dv.yaml_path):
                 QMessageBox.warning(self, tr("app.error"), "数据集 YAML 路径无效")
                 return
@@ -389,10 +493,63 @@ class TrainingPage(QWidget):
             )
             return
         if task_type == "anomaly_detection":
-            QMessageBox.information(
-                self, tr("app.tip"),
-                "异常检测训练暂未实现。请使用「样本集版本」页面生成异常检测数据集。"
+            # Build anomaly dataset on-the-fly, then train
+            from core.anomaly_dataset_builder import build_anomaly_dataset_from_session
+
+            output_root = sess.output_dir or session_output_root(pid)
+            date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dataset_dir = os.path.join(output_root, sid, "dataset_anomaly")
+            job_name = self._job_name_edit.text().strip() or f"train_anomaly_{sid[:12]}"
+
+            try:
+                result = build_anomaly_dataset_from_session(
+                    sid, dataset_dir,
+                    project_id=pid,
+                    spec_id=self._ctx.current_spec_id or "",
+                )
+            except Exception as e:
+                QMessageBox.warning(self, tr("app.error"), str(e))
+                return
+
+            output_dir = os.path.join("outputs", "train_anomaly", f"{job_name}_{date_str}")
+            job = create_training_job(
+                project_id=pid, spec_id=self._ctx.current_spec_id or "",
+                job_name=job_name, dataset_path=result.dataset_dir,
+                base_model=self._anomaly_backbone_combo.currentText(),
+                training_config=json.dumps({
+                    "backbone": self._anomaly_backbone_combo.currentText(),
+                    "image_size": self._anomaly_imgsz_spin.value(),
+                    "coreset_sampling_ratio": self._anomaly_coreset_spin.value(),
+                    "device": self._anomaly_device_combo.currentText(),
+                    "source_type": "anomaly",
+                }),
             )
+            self._worker = AnomalyTrainingWorker(
+                job_id=job.job_id,
+                dataset_path=result.dataset_dir,
+                output_dir=output_dir,
+                device=self._anomaly_device_combo.currentText(),
+                backbone=self._anomaly_backbone_combo.currentText(),
+                image_size=self._anomaly_imgsz_spin.value(),
+                coreset_sampling_ratio=self._anomaly_coreset_spin.value(),
+                spec_id=self._ctx.current_spec_id or "",
+            )
+            self._worker.message.connect(self._on_message)
+            self._worker.progress.connect(self._on_progress)
+            self._worker.log_line.connect(self._append_log_line)
+            self._worker.finished.connect(self._on_finished)
+            self._worker.error.connect(self._on_error)
+            self._monitor_state.setText("训练中")
+            self._monitor_state.setStyleSheet("color: #ff9800; font-weight: bold;")
+            self._monitor_job.setText(f"{job.job_name} ({job.job_id})")
+            self._monitor_epoch.setText("0/0")
+            self._monitor_message.setText("准备启动 PatchCore 训练")
+            self._log_view.clear()
+            self._progress.setRange(0, 100)
+            self._progress.setValue(0)
+            self._start_btn.setEnabled(False)
+            self._stop_btn.setEnabled(True)
+            self._worker.start()
             return
 
         # YOLO detection training (existing flow)
