@@ -4,12 +4,35 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import Signal
 
 from desktop_app.i18n import tr
 from desktop_app.workers.base_worker import BaseWorker
+
+
+def _ensure_ultralytics_config_dir() -> None:
+    """Keep Ultralytics settings inside the project when the user dir is locked."""
+    config_dir = Path("outputs/ultralytics").resolve()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
+
+
+def parse_training_progress(line: str, total_epochs: int) -> tuple[int, int] | None:
+    """Extract YOLO epoch progress from a console output line."""
+    match = re.search(r"(?<!\d)(\d+)\s*/\s*(\d+)(?!\d)", line)
+    if not match:
+        return None
+    current = int(match.group(1))
+    total = int(match.group(2))
+    if total <= 0 or current < 0 or current > total:
+        return None
+    if total_epochs > 0 and total != total_epochs:
+        return None
+    return current, total
 
 
 class TrainingWorker(BaseWorker):
@@ -26,6 +49,9 @@ class TrainingWorker(BaseWorker):
         batch: int = 8,
         device: str = "cpu",
         output_dir: str = "",
+        dataset_version_id: str = "",
+        class_mapping: dict[str, int] | None = None,
+        spec_id: str = "",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -38,6 +64,22 @@ class TrainingWorker(BaseWorker):
         self._device = device
         self._output_dir = output_dir or os.path.join("outputs", "train", job_id)
         self._best_model_path = ""
+        self._pending_log = ""
+        self._dataset_version_id = dataset_version_id
+        self._class_mapping = class_mapping
+        self._spec_id = spec_id
+
+    def _handle_output_chunk(self, text: str) -> None:
+        self._pending_log += text.replace("\r", "\n")
+        while "\n" in self._pending_log:
+            line, self._pending_log = self._pending_log.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+            self.log_line.emit(line)
+            parsed = parse_training_progress(line, self._epochs)
+            if parsed:
+                self.progress.emit(*parsed)
 
     def _run_impl(self) -> None:
         from core.training_job import update_training_job
@@ -58,29 +100,33 @@ class TrainingWorker(BaseWorker):
         captured = io.StringIO()
 
         class TeeOutput:
-            def __init__(self, old, tee):
+            def __init__(self, old, tee, on_write):
                 self.old = old
                 self.tee = tee
+                self.on_write = on_write
 
             def write(self, s):
                 self.old.write(s)
                 self.tee.write(s)
                 if s.strip():
                     self.tee.flush()
+                    self.on_write(s)
 
             def flush(self):
                 self.old.flush()
 
-        sys.stdout = TeeOutput(old_stdout, captured)
-        sys.stderr = TeeOutput(old_stderr, captured)
+        sys.stdout = TeeOutput(old_stdout, captured, self._handle_output_chunk)
+        sys.stderr = TeeOutput(old_stderr, captured, self._handle_output_chunk)
 
         try:
+            _ensure_ultralytics_config_dir()
             from ultralytics import YOLO
 
             self.message.emit(tr("training.loading_base", model=self._base_model))
             model = YOLO(self._base_model)
 
             self.message.emit(tr("training.starting", epochs=self._epochs, imgsz=self._imgsz, batch=self._batch))
+            self.progress.emit(0, self._epochs)
             results = model.train(
                 data=self._dataset_yaml,
                 epochs=self._epochs,
@@ -107,6 +153,7 @@ class TrainingWorker(BaseWorker):
                     best_path = os.path.join(weights_dir, "best.pt")
 
             self._best_model_path = best_path
+            self.progress.emit(self._epochs, self._epochs)
 
             metrics = {}
             try:
@@ -142,6 +189,9 @@ class TrainingWorker(BaseWorker):
                         base_model=self._base_model,
                         metrics=json.dumps(metrics),
                         status="completed",
+                        spec_id=self._spec_id or job.spec_id,
+                        dataset_version_id=self._dataset_version_id or "",
+                        class_mapping=json.dumps(self._class_mapping or {}),
                     )
 
         except Exception as e:

@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
-    QLabel, QSplitter, QTabWidget, QPushButton,
+    QSplitter, QTabWidget, QPushButton,
 )
 
 from desktop_app.constants import (
@@ -19,7 +19,8 @@ from desktop_app.widgets.status_bar import AppStatusBar
 from desktop_app.pages.project_center_page import ProjectCenterPage
 from desktop_app.pages.capture_page import CapturePage
 from desktop_app.pages.sample_classification_page import SampleClassificationPage
-from desktop_app.pages.dataset_page import DatasetPage
+from desktop_app.pages.bbox_annotation_page import BboxAnnotationPage
+from desktop_app.pages.dataset_version_page import DatasetVersionPage
 from desktop_app.pages.training_page import TrainingPage
 from desktop_app.pages.training_jobs_page import TrainingJobsPage
 from desktop_app.pages.model_version_page import ModelVersionPage
@@ -30,11 +31,18 @@ from desktop_app.app_context import AppContext
 from desktop_app.pages.production_run_page import ProductionRunPage
 from desktop_app.pages.device_config_page import DeviceConfigPage
 from desktop_app.pages.camera_config_page import CameraConfigPage
+from desktop_app.pages.camera_management_page import CameraManagementPage
 from desktop_app.pages.plc_config_page import PlcConfigPage
 from desktop_app.pages.encoder_config_page import EncoderConfigPage
-from desktop_app.pages.defect_trace_page import DefectTracePage
 from desktop_app.pages.report_page import ReportPage
 from desktop_app.pages.system_settings_page import SystemSettingsPage
+from desktop_app.pages.log_center_page import LogCenterPage
+from desktop_app.pages.backup_restore_page import BackupRestorePage
+from desktop_app.pages.help_page import HelpPage
+from desktop_app.pages.benchmark_page import BenchmarkPage
+from desktop_app.pages.field_workflow_page import FieldWorkflowPage
+from desktop_app.pages.hybrid_retest_page import HybridRetestPage
+from desktop_app.pages.model_export_page import ModelExportPage
 
 
 class MainWindow(QMainWindow):
@@ -62,12 +70,12 @@ class MainWindow(QMainWindow):
         # Top: sidebar toggle + project selector
         top_bar = QWidget()
         top_layout = QHBoxLayout(top_bar)
-        top_layout.setContentsMargins(8, 4, 12, 4)
-        top_layout.setSpacing(8)
+        top_layout.setContentsMargins(6, 3, 10, 3)
+        top_layout.setSpacing(6)
 
         self._sidebar_btn = QPushButton("☰")
         self._sidebar_btn.setObjectName("sidebarToggleBtn")
-        self._sidebar_btn.setFixedSize(34, 34)
+        self._sidebar_btn.setFixedSize(28, 28)
         self._sidebar_btn.setToolTip("切换边栏  Ctrl+B")
         self._sidebar_btn.clicked.connect(self._toggle_sidebar)
         top_layout.addWidget(self._sidebar_btn)
@@ -88,9 +96,11 @@ class MainWindow(QMainWindow):
         self._data_tabs = QTabWidget()
         self._capture_page = CapturePage()
         self._classify_page = SampleClassificationPage()
-        self._dataset_page = DatasetPage()
+        self._bbox_page = BboxAnnotationPage()
+        self._dataset_page = DatasetVersionPage()
         self._data_tabs.addTab(self._capture_page, tr("capture.title"))
         self._data_tabs.addTab(self._classify_page, tr("classify.title"))
+        self._data_tabs.addTab(self._bbox_page, tr("bbox.page_title"))
         self._data_tabs.addTab(self._dataset_page, tr("dataset.title"))
         data_layout2 = QVBoxLayout(data_container)
         data_layout2.setContentsMargins(0, 0, 0, 0)
@@ -107,6 +117,8 @@ class MainWindow(QMainWindow):
         self._training_tabs.addTab(self._training_page, tr("training.title"))
         self._training_tabs.addTab(self._training_jobs_page, tr("jobs.title"))
         self._training_tabs.addTab(self._model_version_page, tr("model.title"))
+        self._model_export_page = ModelExportPage()
+        self._training_tabs.addTab(self._model_export_page, tr("export.title"))
         tl = QVBoxLayout(training_container)
         tl.setContentsMargins(0, 0, 0, 0)
         tl.addWidget(self._training_tabs)
@@ -137,10 +149,12 @@ class MainWindow(QMainWindow):
         self._device_tabs = QTabWidget()
         self._device_config_page = DeviceConfigPage()
         self._camera_config_page = CameraConfigPage()
+        self._camera_management_page = CameraManagementPage()
         self._plc_config_page = PlcConfigPage()
         self._encoder_config_page = EncoderConfigPage()
         self._device_tabs.addTab(self._device_config_page, tr("device.title"))
         self._device_tabs.addTab(self._camera_config_page, tr("camera.title"))
+        self._device_tabs.addTab(self._camera_management_page, tr("camera.management"))
         self._device_tabs.addTab(self._plc_config_page, tr("plc.title"))
         self._device_tabs.addTab(self._encoder_config_page, tr("encoder.title"))
         dl = QVBoxLayout(device_container)
@@ -157,6 +171,30 @@ class MainWindow(QMainWindow):
         self._settings_page = SystemSettingsPage()
         self._pages.addWidget(self._settings_page)
 
+        # Log center page (Phase 3)
+        self._log_center_page = LogCenterPage()
+        self._pages.addWidget(self._log_center_page)
+
+        # Backup restore page (Phase 3)
+        self._backup_page = BackupRestorePage()
+        self._pages.addWidget(self._backup_page)
+
+        # Help page
+        self._help_page = HelpPage()
+        self._pages.addWidget(self._help_page)
+
+        # Field workflow page (Phase B)
+        self._field_workflow_page = FieldWorkflowPage()
+        self._pages.addWidget(self._field_workflow_page)
+
+        # Hybrid retest page (Phase D)
+        self._hybrid_retest_page = HybridRetestPage()
+        self._pages.addWidget(self._hybrid_retest_page)
+
+        # Benchmark page
+        self._benchmark_page = BenchmarkPage()
+        self._pages.addWidget(self._benchmark_page)
+
         # Real page: project center
         self._project_center = ProjectCenterPage()
         self._pages.addWidget(self._project_center)
@@ -165,7 +203,7 @@ class MainWindow(QMainWindow):
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setHandleWidth(1)
-        self._splitter.setSizes([220, 1060])
+        self._splitter.setSizes([200, 980])
         root_layout.addWidget(self._splitter, 1)
 
         # Bottom: status bar
@@ -182,11 +220,13 @@ class MainWindow(QMainWindow):
         """Re-set tab labels on language change."""
         self._data_tabs.setTabText(0, tr("capture.title"))
         self._data_tabs.setTabText(1, tr("classify.title"))
-        self._data_tabs.setTabText(2, tr("dataset.title"))
+        self._data_tabs.setTabText(2, tr("bbox.page_title"))
+        self._data_tabs.setTabText(3, tr("dataset.title"))
 
         self._training_tabs.setTabText(0, tr("training.title"))
         self._training_tabs.setTabText(1, tr("jobs.title"))
         self._training_tabs.setTabText(2, tr("model.title"))
+        self._training_tabs.setTabText(3, tr("export.title"))
 
         self._eval_tabs.setTabText(0, tr("inference.title"))
         self._eval_tabs.setTabText(1, tr("eval.title"))
@@ -194,15 +234,16 @@ class MainWindow(QMainWindow):
 
         self._device_tabs.setTabText(0, tr("device.title"))
         self._device_tabs.setTabText(1, tr("camera.title"))
-        self._device_tabs.setTabText(2, tr("plc.title"))
-        self._device_tabs.setTabText(3, tr("encoder.title"))
+        self._device_tabs.setTabText(2, tr("camera.management"))
+        self._device_tabs.setTabText(3, tr("plc.title"))
+        self._device_tabs.setTabText(4, tr("encoder.title"))
 
     def _toggle_sidebar(self) -> None:
         self._sidebar_collapsed = not self._sidebar_collapsed
         self._nav.set_collapsed(self._sidebar_collapsed)
         self._sidebar_btn.setText("☰" if not self._sidebar_collapsed else "›")
         self._sidebar_btn.setToolTip("切换边栏  Ctrl+B")
-        self._splitter.setSizes([56 if self._sidebar_collapsed else 220, 1224])
+        self._splitter.setSizes([48 if self._sidebar_collapsed else 200, 1132])
 
     def _on_page_selected(self, page_id: str) -> None:
         if page_id == "project_center":
@@ -221,6 +262,18 @@ class MainWindow(QMainWindow):
             self._pages.setCurrentWidget(self._report_page)
         elif page_id == "settings":
             self._pages.setCurrentWidget(self._settings_page)
+        elif page_id == "log_center":
+            self._pages.setCurrentWidget(self._log_center_page)
+        elif page_id == "backup":
+            self._pages.setCurrentWidget(self._backup_page)
+        elif page_id == "help":
+            self._pages.setCurrentWidget(self._help_page)
+        elif page_id == "benchmark":
+            self._pages.setCurrentWidget(self._benchmark_page)
+        elif page_id == "field_workflow":
+            self._pages.setCurrentWidget(self._field_workflow_page)
+        elif page_id == "hybrid_retest":
+            self._pages.setCurrentWidget(self._hybrid_retest_page)
         self._update_status()
 
     def _on_context_changed(self, _value: str) -> None:

@@ -3,10 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.pytest-tmp/
+.pytest_tmp/
 .coverage
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.superpowers/
 
 # Virtual environments
 .venv/
@@ -19,11 +22,19 @@ env/
 
 # Generated outputs
 outputs/
+logs/
 .cache/
 offline_pkgs/
+phase4_v0_4_platform/
+project_data/
+camera_test_frame_*.png
 
 # Local sample datasets
 data/images/copper images/
+data/images/test/
+data/labels/test_labels/
+data/app.db
+data/image_index.db
 
 # OS / editor
 .DS_Store

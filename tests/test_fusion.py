@@ -109,3 +109,24 @@ class TestEvaluateFusionStrategy:
         import pytest
         with pytest.raises(ValueError, match="Unknown fusion strategy"):
             evaluate_fusion_strategy("invalid", [], {})
+
+
+class TestListStrategies:
+    """Regression: ensure all FusionStrategy enum values have name/description entries."""
+
+    def test_all_strategies_listed_without_keyerror(self):
+        from src.fusion.fusion_strategies import list_strategies
+        strategies = list_strategies()
+        # Must include all 10 enum values
+        strategy_ids = {s["id"] for s in strategies}
+        assert "exploration_first" in strategy_ids
+        assert "few_shot" in strategy_ids
+        assert "production_retest" in strategy_ids
+        assert "stable_production" in strategy_ids
+        assert len(strategies) == 10
+
+    def test_every_strategy_has_non_empty_name(self):
+        from src.fusion.fusion_strategies import list_strategies
+        for s in list_strategies():
+            assert s["name"], f"{s['id']} has empty name"
+            assert s["description"], f"{s['id']} has empty description"

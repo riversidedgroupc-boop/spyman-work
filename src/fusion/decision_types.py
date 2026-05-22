@@ -12,6 +12,8 @@ class FinalDecision(str, Enum):
     ACCEPTABLE_MICRO_DEFECT = "ACCEPTABLE_MICRO_DEFECT"
     SUSPECT = "SUSPECT"
     NG = "NG"
+    UNKNOWN = "UNKNOWN"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
 
 
 class DefectClass(str, Enum):
@@ -36,6 +38,24 @@ class ModelSource(str, Enum):
     FUSION = "fusion"
 
 
+class ReviewStatus(str, Enum):
+    UNREVIEWED = "unreviewed"
+    CONFIRMED_DEFECT = "confirmed_defect"
+    ACCEPTABLE_TEXTURE = "acceptable_texture"
+    NOISE_OR_REFLECTION = "noise_or_reflection"
+    NORMAL = "normal"
+    UNKNOWN_PENDING = "unknown_pending"
+
+
+class ReasonCode(str, Enum):
+    YOLO_KNOWN_DEFECT = "yolo_known_defect"
+    ANOMALY_UNKNOWN = "anomaly_unknown"
+    YOLO_UNCERTAIN_ANOMALY_CONFIRMED = "yolo_uncertain_anomaly_confirmed"
+    CLEAN_BY_BOTH = "clean_by_both"
+    POSSIBLE_FALSE_POSITIVE = "possible_false_positive"
+    NEEDS_MANUAL_REVIEW = "needs_manual_review"
+
+
 class FusionStrategy(str, Enum):
     YOLO_ONLY = "yolo_only"
     ANOMALY_ONLY = "anomaly_only"
@@ -43,6 +63,10 @@ class FusionStrategy(str, Enum):
     ANOMALY_PRIORITY = "anomaly_priority"
     RULE_BASED = "rule_based"
     DOUBLE_CONFIRM = "double_confirm"
+    EXPLORATION_FIRST = "exploration_first"
+    FEW_SHOT = "few_shot"
+    PRODUCTION_RETEST = "production_retest"
+    STABLE_PRODUCTION = "stable_production"
 
 
 @dataclass

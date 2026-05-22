@@ -136,6 +136,7 @@ def render_model_inference():
             if "ext_cache_key" in st.session_state:
                 clear_cache(st.session_state.ext_cache_key)
                 st.session_state.pop("ext_predictions", None)
+                st.session_state.pop("external_predictions", None)
                 st.success("缓存已清除")
 
     # ------------------------------------------------------------------
@@ -236,6 +237,7 @@ def render_model_inference():
             st.success(f"预测结果已缓存 ({len(predictions)} 张)")
 
         st.session_state.ext_predictions = predictions
+        st.session_state.external_predictions = predictions
 
     # ------------------------------------------------------------------
     # Display results

@@ -25,19 +25,19 @@ def get_stylesheet() -> str:
     QWidget {{
         background-color: {BG_DARK};
         color: {TEXT_PRIMARY};
-        font-size: 13px;
+        font-size: 12px;
     }}
     QListWidget {{
         background-color: {BG_PANEL};
         border: none;
         outline: none;
-        padding: 8px 0;
+        padding: 2px 0;
     }}
     QListWidget::item {{
-        padding: 14px 8px;
+        padding: 10px 6px;
         border-left: 3px solid transparent;
         color: {TEXT_SECONDARY};
-        font-size: 15px;
+        font-size: 13px;
     }}
     QListWidget::item:selected {{
         background-color: {PRIMARY};
@@ -48,11 +48,29 @@ def get_stylesheet() -> str:
         background-color: {BG_INPUT};
         color: {TEXT_PRIMARY};
     }}
+    QListWidget#navList::item {{
+        font-size: 13px;
+        font-weight: bold;
+        padding: 4px 6px;
+        margin: 3px 7px;
+        background-color: #303030;
+        border-radius: 6px;
+        border-left: 4px solid transparent;
+    }}
+    QListWidget#navList::item:selected {{
+        background-color: {PRIMARY};
+        color: {TEXT_PRIMARY};
+        border-left: 4px solid {ACCENT};
+    }}
+    QListWidget#navList::item:hover {{
+        background-color: #3A3A3A;
+        color: {TEXT_PRIMARY};
+    }}
     QPushButton {{
         background-color: {PRIMARY};
         color: {TEXT_PRIMARY};
         border: none;
-        padding: 8px 16px;
+        padding: 6px 12px;
         border-radius: 4px;
         font-weight: bold;
     }}
@@ -80,9 +98,9 @@ def get_stylesheet() -> str:
         background-color: {BG_PANEL};
         color: {TEXT_SECONDARY};
         border: 1px solid {BORDER};
-        border-radius: 8px;
+        border-radius: 6px;
         padding: 0;
-        font-size: 18px;
+        font-size: 16px;
         font-weight: normal;
     }}
     QPushButton#sidebarToggleBtn:hover {{
@@ -93,7 +111,7 @@ def get_stylesheet() -> str:
         background-color: {BG_INPUT};
         color: {TEXT_PRIMARY};
         border: 1px solid {BORDER};
-        padding: 6px 10px;
+        padding: 4px 8px;
         border-radius: 4px;
     }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{
@@ -108,7 +126,7 @@ def get_stylesheet() -> str:
         selection-color: {TEXT_PRIMARY};
     }}
     QTableWidget::item {{
-        padding: 6px;
+        padding: 4px;
     }}
     QTableWidget::item:selected {{
         background-color: {PRIMARY};
@@ -117,7 +135,7 @@ def get_stylesheet() -> str:
     QHeaderView::section {{
         background-color: {BG_DARK};
         color: {TEXT_SECONDARY};
-        padding: 8px;
+        padding: 6px;
         border: none;
         border-bottom: 2px solid {BORDER};
         font-weight: bold;
@@ -128,8 +146,8 @@ def get_stylesheet() -> str:
     QGroupBox {{
         border: 1px solid {BORDER};
         border-radius: 6px;
-        margin-top: 12px;
-        padding-top: 20px;
+        margin-top: 9px;
+        padding-top: 15px;
     }}
     QGroupBox::title {{
         subcontrol-origin: margin;
@@ -144,7 +162,7 @@ def get_stylesheet() -> str:
     QTabBar::tab {{
         background-color: {BG_DARK};
         color: {TEXT_SECONDARY};
-        padding: 8px 16px;
+        padding: 6px 12px;
         border: 1px solid {BORDER};
     }}
     QTabBar::tab:selected {{

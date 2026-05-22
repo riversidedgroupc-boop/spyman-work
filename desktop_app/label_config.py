@@ -10,9 +10,9 @@ DEFAULT_LABELS = [
     {"value": "OK", "label": "OK", "color": "#2E7D32"},
     {"value": "NG_A", "label": "NG-A 缺陷", "color": "#C62828"},
     {"value": "NG_B", "label": "NG-B 缺陷", "color": "#E65100"},
-    {"value": "UNKNOWN", "label": "未知", "color": "#6A1B9A"},
-    {"value": "INTERFERENCE", "label": "干扰", "color": "#0277BD"},
-    {"value": "UNCERTAIN", "label": "不确定", "color": "#F57F17"},
+    {"value": "NG_C", "label": "NG-C 缺陷", "color": "#BF360C"},
+    {"value": "UNKNOWN", "label": "未知缺陷", "color": "#6A1B9A"},
+    {"value": "IGNORE", "label": "忽略", "color": "#78909C"},
 ]
 
 
@@ -80,6 +80,34 @@ def add_label(label: str, color: str = "#607D8B") -> LabelOption:
 def remove_label(value: str) -> None:
     options = [opt for opt in load_label_options() if opt.value != value]
     save_label_options(options)
+
+
+def move_label(value: str, target_index: int) -> LabelOption:
+    options = load_label_options()
+    source_index = next((index for index, opt in enumerate(options) if opt.value == value), -1)
+    if source_index < 0:
+        raise ValueError(f"unknown label value: {value}")
+
+    option = options.pop(source_index)
+    bounded_index = max(0, min(target_index, len(options)))
+    options.insert(bounded_index, option)
+    save_label_options(options)
+    return option
+
+
+def rename_label(value: str, label: str) -> LabelOption:
+    label = label.strip()
+    if not label:
+        raise ValueError("label is required")
+
+    options = load_label_options()
+    for index, option in enumerate(options):
+        if option.value == value:
+            renamed = LabelOption(value=option.value, label=label, color=option.color)
+            options[index] = renamed
+            save_label_options(options)
+            return renamed
+    raise ValueError(f"unknown label value: {value}")
 
 
 def label_text(value: str) -> str:
