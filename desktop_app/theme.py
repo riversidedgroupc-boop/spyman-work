@@ -31,7 +31,7 @@ def get_stylesheet() -> str:
         background-color: {BG_PANEL};
         border: none;
         outline: none;
-        padding: 5px 0;
+        padding: 2px 0;
     }}
     QListWidget::item {{
         padding: 10px 6px;
@@ -49,10 +49,11 @@ def get_stylesheet() -> str:
         color: {TEXT_PRIMARY};
     }}
     QListWidget#navList::item {{
-        font-size: 16px;
+        font-size: 13px;
         font-weight: bold;
-        padding: 13px 4px;
-        margin: 3px 4px;
+        padding: 4px 6px;
+        margin: 3px 7px;
+        background-color: #303030;
         border-radius: 6px;
         border-left: 4px solid transparent;
     }}
@@ -62,7 +63,7 @@ def get_stylesheet() -> str:
         border-left: 4px solid {ACCENT};
     }}
     QListWidget#navList::item:hover {{
-        background-color: {BG_INPUT};
+        background-color: #3A3A3A;
         color: {TEXT_PRIMARY};
     }}
     QPushButton {{

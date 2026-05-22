@@ -22,6 +22,8 @@ dependencies = [
     "tqdm>=4.66.0",
     "scipy>=1.12.0",
     "PySide6>=6.7.0",
+    "psutil>=5.9.0",
+    "nvidia-ml-py>=12.560.30",
 ]
 
 [project.optional-dependencies]
@@ -38,3 +40,4 @@ target-version = "py312"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = ["-p", "no:cacheprovider"]

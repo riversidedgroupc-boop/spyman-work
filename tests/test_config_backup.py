@@ -1,5 +1,6 @@
 """Tests for config backup and restore."""
 import os
+import zipfile
 
 from core.config_backup import create_backup, list_backups, restore_backup, delete_backup
 
@@ -31,6 +32,19 @@ def test_restore_backup(tmp_path):
     meta = create_backup(name="restore_test", backup_dir=str(tmp_path))
     restored = restore_backup(meta.backup_id, backup_dir=str(tmp_path))
     assert "data/app.db" in restored or any("data" in r for r in restored)
+
+
+def test_restore_backup_rejects_path_traversal(tmp_path):
+    zip_path = tmp_path / "EVIL.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("../outside.txt", "owned")
+
+    try:
+        restore_backup("EVIL", backup_dir=str(tmp_path))
+    except ValueError as exc:
+        assert "unsafe" in str(exc).lower()
+    else:
+        raise AssertionError("unsafe backup member was restored")
 
 
 def test_delete_backup(tmp_path):

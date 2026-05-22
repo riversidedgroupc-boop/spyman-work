@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "value": "OK",
+    "label": "OK",
+    "color": "#2E7D32"
+  },
+  {
+    "value": "NG_裂纹",
+    "label": "NG-裂纹",
+    "color": "#607D8B"
+  },
+  {
+    "value": "油污",
+    "label": "油污",
+    "color": "#607D8B"
+  },
+  {
+    "value": "污渍",
+    "label": "污渍",
+    "color": "#607D8B"
+  },
+  {
+    "value": "NG_C",
+    "label": "NG-点伤",
+    "color": "#BF360C"
+  },
+  {
+    "value": "UNKNOWN",
+    "label": "未知缺陷",
+    "color": "#6A1B9A"
+  }
+]

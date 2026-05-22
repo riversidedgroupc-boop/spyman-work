@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from core.id_utils import generate_id
 from core.storage import insert, fetch_one, fetch_all, update, delete
 
 
@@ -67,8 +68,7 @@ class DatasetVersion:
 
 
 def create_dataset_version(**kwargs) -> DatasetVersion:
-    now = datetime.now()
-    version_id = now.strftime("DSVER_%Y%m%d_%H%M%S_%f")
+    version_id = generate_id("DSVER")
     dv = DatasetVersion(version_id=version_id, **kwargs)
     insert("dataset_versions", dv.to_dict())
     return dv

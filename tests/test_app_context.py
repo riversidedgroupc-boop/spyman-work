@@ -1,13 +1,13 @@
 """Tests for AppContext."""
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 
 @pytest.fixture(scope="session")
-def qapp():
-    app = QCoreApplication.instance()
+def qapp() -> QApplication:
+    app = QApplication.instance()
     if app is None:
-        app = QCoreApplication([])
+        app = QApplication([])
     return app
 
 

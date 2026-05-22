@@ -33,7 +33,7 @@ class FolderWatchWorker(BaseWorker):
         self._camera_count = camera_count
         self._target_count = target_count
         self._poll_interval = poll_interval
-        self._seen_hashes: set[str] = set()
+        self._seen_files: set[tuple[str, str]] = set()
         self._total_captured = 0
 
     def _run_impl(self) -> None:
@@ -58,10 +58,10 @@ class FolderWatchWorker(BaseWorker):
                     src = os.path.join(watch_dir, fname)
                     if not os.path.isfile(src):
                         continue
-                    fhash = self._file_hash(src)
-                    if fhash in self._seen_hashes:
+                    seen_key = (cam_id, os.path.abspath(src))
+                    if seen_key in self._seen_files:
                         continue
-                    self._seen_hashes.add(fhash)
+                    self._seen_files.add(seen_key)
 
                     try:
                         from PIL import Image
@@ -72,6 +72,7 @@ class FolderWatchWorker(BaseWorker):
                         continue
 
                     out_dir = os.path.join(self._output_root, cam_id)
+                    os.makedirs(out_dir, exist_ok=True)
                     dst = os.path.join(out_dir, fname)
                     shutil.copy2(src, dst)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from core.id_utils import generate_id
 from core.storage import delete, fetch_all, fetch_one, insert, update
 
 VALID_STATUSES = {"created", "queued", "running", "completed", "failed", "candidate", "archived"}
@@ -74,7 +75,7 @@ class TrainingJob:
 
 
 def _gen_id() -> str:
-    return datetime.now().strftime("JOB_%Y%m%d_%H%M%S_%f")
+    return generate_id("JOB")
 
 
 def create_training_job(

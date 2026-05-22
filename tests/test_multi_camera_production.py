@@ -1,6 +1,7 @@
 """Tests for multi-camera acquisition and inference pipelines."""
 import time
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -177,3 +178,30 @@ def test_inference_pipeline_default_runner_fallback():
 
     # The default runner should have been used for cam_unknown
     assert pipeline.total_inference_count >= 1
+
+
+def test_inference_pipeline_removes_temp_file_after_runner_error(monkeypatch):
+    buf = FrameBuffer(max_size=50)
+    pipeline = InferencePipeline(buf)
+
+    class FailingRunner:
+        runner_name = "failing"
+        seen_path = ""
+
+        def predict_image(self, path):
+            self.seen_path = path
+            raise RuntimeError("boom")
+
+    runner = FailingRunner()
+    pipeline.set_runner(runner, camera_id="cam1")
+
+    import numpy as np
+    img = (np.random.rand(60, 80, 3) * 255).astype("uint8")
+    buf.put({"camera_id": "cam1", "image": img, "timestamp": time.time()})
+
+    pipeline.start()
+    time.sleep(0.1)
+    pipeline.stop()
+
+    assert runner.seen_path
+    assert not Path(runner.seen_path).exists()

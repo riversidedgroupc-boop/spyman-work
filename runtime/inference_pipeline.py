@@ -8,13 +8,14 @@ from __future__ import annotations
 import os
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Thread, Event
 from typing import Any, Callable
 
 import cv2
 
 from runtime.frame_buffer import FrameBuffer
+from core.log_manager import LogManager
 
 # Optional line-scan tile support
 try:
@@ -122,12 +123,20 @@ class InferencePipeline:
                 runner = self._get_runner(camera_id)
 
                 img = frame_data["image"]
-                tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-                cv2.imwrite(tmp.name, img)
-                tmp.close()
-
-                prediction = runner.predict_image(tmp.name)
-                os.unlink(tmp.name)
+                tmp_path = ""
+                try:
+                    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+                    tmp_path = tmp.name
+                    tmp.close()
+                    if not cv2.imwrite(tmp_path, img):
+                        raise RuntimeError(f"failed to write temporary inference image: {tmp_path}")
+                    prediction = runner.predict_image(tmp_path)
+                finally:
+                    if tmp_path:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
 
                 stats = self._stats.setdefault(camera_id, CameraInferenceStats())
                 stats.inference_count += 1
@@ -157,6 +166,11 @@ class InferencePipeline:
                 stats = self._stats.setdefault(camera_id, CameraInferenceStats())
                 stats.error_count += 1
                 stats.last_error = str(e)
+                LogManager.instance().get_logger("inference").exception(
+                    "Inference failed for camera=%s runner=%s",
+                    camera_id,
+                    getattr(self._runners.get(camera_id) or self._default_runner, "runner_name", "unknown"),
+                )
                 continue
 
     # ------------------------------------------------------------------
@@ -185,13 +199,21 @@ class InferencePipeline:
         for tile in tiles:
             camera_stats.inference_count += 1
             try:
-                tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-                cv2.imwrite(tmp.name, tile.image)
-                tmp.close()
-
-                prediction = runner.predict_image(tmp.name)
-                last_prediction = prediction
-                os.unlink(tmp.name)
+                tmp_path = ""
+                try:
+                    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                    tmp_path = tmp.name
+                    tmp.close()
+                    if not cv2.imwrite(tmp_path, tile.image):
+                        raise RuntimeError(f"failed to write temporary inference tile: {tmp_path}")
+                    prediction = runner.predict_image(tmp_path)
+                    last_prediction = prediction
+                finally:
+                    if tmp_path:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
 
                 tile_dets = getattr(prediction, "detections", [])
                 if tile_dets:
@@ -217,10 +239,13 @@ class InferencePipeline:
 
             except Exception:
                 camera_stats.error_count += 1
-                try:
-                    os.unlink(tmp.name)
-                except (OSError, NameError):
-                    pass
+                camera_stats.last_error = "tile inference failed"
+                LogManager.instance().get_logger("inference").exception(
+                    "Tile inference failed for camera=%s block=%s tile=%s",
+                    camera_id,
+                    getattr(block, "block_id", ""),
+                    getattr(tile, "tile_id", ""),
+                )
 
         is_ng = len(all_detections) > 0
         if is_ng:

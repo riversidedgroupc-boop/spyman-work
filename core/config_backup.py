@@ -120,14 +120,32 @@ def restore_backup(backup_id: str, backup_dir: str | None = None) -> list[str]:
         raise FileNotFoundError(f"Backup not found: {zip_path}")
 
     root = _project_root()
+    root_abs = os.path.abspath(root)
     restored: list[str] = []
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
-            target = os.path.join(root, member)
+            target = _safe_restore_target(root_abs, member)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             zf.extract(member, root)
             restored.append(member)
     return restored
+
+
+def _safe_restore_target(root_abs: str, member: str) -> str:
+    normalized_member = member.replace("\\", "/")
+    if (
+        normalized_member.startswith("/")
+        or normalized_member.startswith("../")
+        or "/../" in normalized_member
+        or normalized_member.endswith("/..")
+        or os.path.isabs(member)
+        or os.path.splitdrive(member)[0]
+    ):
+        raise ValueError(f"Unsafe backup member path: {member}")
+    target = os.path.abspath(os.path.join(root_abs, normalized_member))
+    if os.path.commonpath([root_abs, target]) != root_abs:
+        raise ValueError(f"Unsafe backup member path: {member}")
+    return target
 
 
 def delete_backup(backup_id: str, backup_dir: str | None = None) -> None:

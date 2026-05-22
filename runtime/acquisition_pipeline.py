@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from threading import Thread, Event
 from typing import Any
+from datetime import datetime
 
 from camera_adapters.base import BaseCameraAdapter
 from runtime.frame_buffer import FrameBuffer
@@ -11,8 +12,9 @@ from runtime.frame_buffer import FrameBuffer
 # Line-scan support (optional — degrades gracefully if not installed)
 try:
     from src.device.camera.line_scan.interface import LineScanDevice
-    from src.device.camera.line_scan.types import FramePacket, LineScanImageBlock
+    from src.device.camera.line_scan.types import FramePacket, LineScanImageBlock, ImageTile
     from src.device.camera.line_scan.block_builder import LineScanBlockBuilder
+    from src.device.camera.line_scan.tile_generator import TileGenerator
 
     _LINE_SCAN_AVAILABLE = True
 except ImportError:
@@ -20,6 +22,8 @@ except ImportError:
     FramePacket = None  # type: ignore[assignment]
     LineScanImageBlock = None  # type: ignore[assignment]
     LineScanBlockBuilder = None  # type: ignore[assignment]
+    ImageTile = None  # type: ignore[assignment]
+    TileGenerator = None  # type: ignore[assignment]
     _LINE_SCAN_AVAILABLE = False
 
 
@@ -43,6 +47,25 @@ class AcquisitionPipeline:
         self._interval = 0.05  # 20 FPS max for area-scan
         self._encoder: Any = None  # BaseEncoderReader | None
         self._sampling: Any = None  # SamplingController | None
+        self._image_pool: Any = None  # UnifiedImagePool | None
+        self._run_id = "unknown_run"
+        self._customer_id = "unknown_customer"
+        self._product_id = "unknown_product"
+
+    def set_image_pool(self, pool) -> None:
+        """Register a UnifiedImagePool to receive tiles from all cameras.
+
+        When set, completed line-scan blocks are sliced into tiles and
+        pushed directly into the pool instead of (or in addition to)
+        the internal FrameBuffer.
+        """
+        self._image_pool = pool
+
+    def set_run_context(self, run_id: str, customer_id: str, product_id: str) -> None:
+        """Set traceability metadata for tiles pushed to UnifiedImagePool."""
+        self._run_id = run_id or "unknown_run"
+        self._customer_id = customer_id or "unknown_customer"
+        self._product_id = product_id or "unknown_product"
 
     # ------------------------------------------------------------------
     # Area-scan adapter API (existing, unchanged)
@@ -98,9 +121,13 @@ class AcquisitionPipeline:
                     "image": block.image,
                     "timestamp": time.time(),
                     "position_meter": block.start_meter,
-                    "block": block,  # attach full metadata for downstream tile slicing
+                    "block": block,
                 }
                 self._buffer.put(frame_data)
+
+                # Also push tiles into UnifiedImagePool when configured
+                if self._image_pool is not None:
+                    self._push_tiles_to_pool(block, camera_id)
 
         builder.set_on_block(_on_block)
 
@@ -196,6 +223,48 @@ class AcquisitionPipeline:
                 self._buffer.put(frame_data)
             else:
                 time.sleep(self._interval)
+
+    # ------------------------------------------------------------------
+    # Tile-to-pool helper (line-scan)
+    # ------------------------------------------------------------------
+
+    def _push_tiles_to_pool(self, block: LineScanImageBlock, camera_id: str) -> None:
+        """Slice a line-scan block into tiles and push each as TileEntry to the pool."""
+        if self._image_pool is None:
+            return
+        try:
+            from runtime.unified_image_pool import TileEntry
+        except ImportError:
+            return
+
+        generator = TileGenerator(tile_size=320)
+        tiles: list[ImageTile] = generator.slice_block(block)
+
+        for index, t in enumerate(tiles):
+            if t.image is None:
+                continue
+            entry = TileEntry(
+                tile_id=t.tile_id,
+                run_id=self._run_id,
+                customer_id=self._customer_id,
+                product_id=self._product_id,
+                camera_id=t.camera_id,
+                block_id=t.block_id,
+                tile_index=index,
+                tile_x=t.x0,
+                tile_y=t.y0,
+                meter_start=t.meter_start,
+                meter_end=t.meter_end,
+                encoder_count_start=block.start_encoder_count,
+                encoder_count_end=block.end_encoder_count,
+                timestamp=datetime.now().isoformat(),
+                image=t.image,
+                tile_width=getattr(t, "width", 320),
+                tile_height=getattr(t, "height", 320),
+                image_format="Mono8" if getattr(t.image, "ndim", 0) == 2 else "RGB8",
+                source_buffer_id=t.block_id,
+            )
+            self._image_pool.push(entry)
 
     # ------------------------------------------------------------------
     # Query

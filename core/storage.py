@@ -24,7 +24,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 # Current schema version for migration tracking
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 8
 
 
 def init_db() -> None:
@@ -231,6 +231,110 @@ def init_db() -> None:
             FOREIGN KEY (project_id) REFERENCES projects(project_id)
         );
 
+        CREATE TABLE IF NOT EXISTS field_sessions (
+            field_session_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            spec_id TEXT NOT NULL,
+            session_type TEXT NOT NULL DEFAULT 'baseline_collection',
+            status TEXT NOT NULL DEFAULT 'created',
+            hardware_snapshot TEXT NOT NULL DEFAULT '{}',
+            acquisition_config_snapshot TEXT NOT NULL DEFAULT '{}',
+            notes TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (project_id) REFERENCES projects(project_id),
+            FOREIGN KEY (spec_id) REFERENCES product_specs(spec_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS defect_types (
+            defect_type_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            spec_id TEXT NOT NULL DEFAULT '',
+            code TEXT NOT NULL DEFAULT '',
+            display_name_zh TEXT NOT NULL DEFAULT '',
+            display_name_en TEXT NOT NULL DEFAULT '',
+            severity TEXT NOT NULL DEFAULT 'medium',
+            description TEXT NOT NULL DEFAULT '',
+            is_ng INTEGER NOT NULL DEFAULT 1,
+            sample_image_paths TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (project_id) REFERENCES projects(project_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS anomaly_reviews (
+            review_id TEXT PRIMARY KEY,
+            field_session_id TEXT NOT NULL,
+            image_path TEXT NOT NULL DEFAULT '',
+            crop_path TEXT NOT NULL DEFAULT '',
+            heatmap_path TEXT NOT NULL DEFAULT '',
+            anomaly_score REAL NOT NULL DEFAULT 0.0,
+            cluster_id TEXT NOT NULL DEFAULT '',
+            review_status TEXT NOT NULL DEFAULT 'unreviewed',
+            assigned_defect_type_id TEXT,
+            reviewer TEXT NOT NULL DEFAULT '',
+            reviewed_at TEXT,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (field_session_id) REFERENCES field_sessions(field_session_id),
+            FOREIGN KEY (assigned_defect_type_id) REFERENCES defect_types(defect_type_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS hybrid_retest_runs (
+            run_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            spec_id TEXT NOT NULL DEFAULT '',
+            field_session_id TEXT NOT NULL DEFAULT '',
+            yolo_model_id TEXT NOT NULL DEFAULT '',
+            anomaly_model_id TEXT NOT NULL DEFAULT '',
+            image_dir TEXT NOT NULL DEFAULT '',
+            config_json TEXT NOT NULL DEFAULT '{}',
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'created',
+            started_at TEXT,
+            ended_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS hybrid_retest_items (
+            item_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            image_path TEXT NOT NULL,
+            final_decision TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            yolo_detection_count INTEGER NOT NULL DEFAULT 0,
+            anomaly_score REAL NOT NULL DEFAULT 0,
+            runtime_ms REAL NOT NULL DEFAULT 0,
+            review_id TEXT,
+            extra_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (run_id) REFERENCES hybrid_retest_runs(run_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS model_export_artifacts (
+            export_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            spec_id TEXT NOT NULL DEFAULT '',
+            source_model_id TEXT NOT NULL,
+            backend TEXT NOT NULL,
+            precision TEXT NOT NULL DEFAULT 'fp32',
+            artifact_path TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'created',
+            device_name TEXT NOT NULL DEFAULT '',
+            cuda_version TEXT NOT NULL DEFAULT '',
+            tensorrt_version TEXT NOT NULL DEFAULT '',
+            input_shape TEXT NOT NULL DEFAULT '',
+            export_config_json TEXT NOT NULL DEFAULT '{}',
+            metrics_json TEXT NOT NULL DEFAULT '{}',
+            error_message TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (project_id) REFERENCES projects(project_id),
+            FOREIGN KEY (source_model_id) REFERENCES model_versions(model_id)
+        );
+
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER PRIMARY KEY
         );
@@ -238,12 +342,19 @@ def init_db() -> None:
     conn.commit()
     conn.close()
 
-    # Run migration to add any missing columns to existing tables
+    # Run migrations to add any missing columns/tables
     migrate_v6()
+    migrate_v7()
+    migrate_v8()
 
 
 def migrate_v6() -> None:
-    """Add V6 columns to existing tables if missing (safe for new installs)."""
+    """Apply schema v6: add missing columns + Phase A exploration tables.
+
+    This single function handles ALL v6 changes for both fresh installs
+    and upgrades from v5.  Existing tables get new columns; new tables
+    are created if they don't exist yet.
+    """
     conn = get_connection()
     try:
         # Check if migration already applied
@@ -305,17 +416,199 @@ def migrate_v6() -> None:
     if "position_meter" not in pde_cols:
         conn.execute("ALTER TABLE production_defect_events ADD COLUMN position_meter REAL")
 
-    # --- capture_sessions: sampling_mode ---
+    # --- capture_sessions: sampling_mode, dataset_task_type ---
     cs_cols = {r[1] for r in conn.execute("PRAGMA table_info(capture_sessions)")}
     if "sampling_mode" not in cs_cols:
         conn.execute("ALTER TABLE capture_sessions ADD COLUMN sampling_mode TEXT NOT NULL DEFAULT 'directory_watch'")
+    if "dataset_task_type" not in cs_cols:
+        conn.execute("ALTER TABLE capture_sessions ADD COLUMN dataset_task_type TEXT NOT NULL DEFAULT ''")
 
     # --- captured_images: position_meter ---
     ci_cols = {r[1] for r in conn.execute("PRAGMA table_info(captured_images)")}
     if "position_meter" not in ci_cols:
         conn.execute("ALTER TABLE captured_images ADD COLUMN position_meter REAL")
 
+    # --- Phase A exploration tables (schema v6) ---
+    existing_tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "field_sessions" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE field_sessions (
+                field_session_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                spec_id TEXT NOT NULL,
+                session_type TEXT NOT NULL DEFAULT 'baseline_collection',
+                status TEXT NOT NULL DEFAULT 'created',
+                hardware_snapshot TEXT NOT NULL DEFAULT '{}',
+                acquisition_config_snapshot TEXT NOT NULL DEFAULT '{}',
+                notes TEXT DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (project_id) REFERENCES projects(project_id),
+                FOREIGN KEY (spec_id) REFERENCES product_specs(spec_id)
+            )
+        """)
+
+    if "defect_types" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE defect_types (
+                defect_type_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                spec_id TEXT NOT NULL DEFAULT '',
+                code TEXT NOT NULL DEFAULT '',
+                display_name_zh TEXT NOT NULL DEFAULT '',
+                display_name_en TEXT NOT NULL DEFAULT '',
+                severity TEXT NOT NULL DEFAULT 'medium',
+                description TEXT NOT NULL DEFAULT '',
+                is_ng INTEGER NOT NULL DEFAULT 1,
+                sample_image_paths TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (project_id) REFERENCES projects(project_id)
+            )
+        """)
+
+    if "anomaly_reviews" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE anomaly_reviews (
+                review_id TEXT PRIMARY KEY,
+                field_session_id TEXT NOT NULL,
+                image_path TEXT NOT NULL DEFAULT '',
+                crop_path TEXT NOT NULL DEFAULT '',
+                heatmap_path TEXT NOT NULL DEFAULT '',
+                anomaly_score REAL NOT NULL DEFAULT 0.0,
+                cluster_id TEXT NOT NULL DEFAULT '',
+                review_status TEXT NOT NULL DEFAULT 'unreviewed',
+                assigned_defect_type_id TEXT,
+                reviewer TEXT NOT NULL DEFAULT '',
+                reviewed_at TEXT,
+                notes TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (field_session_id) REFERENCES field_sessions(field_session_id),
+                FOREIGN KEY (assigned_defect_type_id) REFERENCES defect_types(defect_type_id)
+            )
+        """)
+
     # Record schema version
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+    conn.commit()
+    conn.close()
+
+
+def migrate_v7() -> None:
+    """Apply schema v7: add hybrid_retest tables (Phase D)."""
+    conn = get_connection()
+    try:
+        # Check if migration already applied
+        row = conn.execute(
+            "SELECT version FROM schema_version WHERE version = ?", (_SCHEMA_VERSION,)
+        ).fetchone()
+        if row:
+            conn.close()
+            return
+    except Exception:
+        pass
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
+    )
+
+    existing_tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "hybrid_retest_runs" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE hybrid_retest_runs (
+                run_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                spec_id TEXT NOT NULL DEFAULT '',
+                field_session_id TEXT NOT NULL DEFAULT '',
+                yolo_model_id TEXT NOT NULL DEFAULT '',
+                anomaly_model_id TEXT NOT NULL DEFAULT '',
+                image_dir TEXT NOT NULL DEFAULT '',
+                config_json TEXT NOT NULL DEFAULT '{}',
+                summary_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL DEFAULT 'created',
+                started_at TEXT,
+                ended_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+
+    if "hybrid_retest_items" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE hybrid_retest_items (
+                item_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                image_path TEXT NOT NULL,
+                final_decision TEXT NOT NULL,
+                reason TEXT NOT NULL DEFAULT '',
+                yolo_detection_count INTEGER NOT NULL DEFAULT 0,
+                anomaly_score REAL NOT NULL DEFAULT 0,
+                runtime_ms REAL NOT NULL DEFAULT 0,
+                review_id TEXT,
+                extra_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (run_id) REFERENCES hybrid_retest_runs(run_id)
+            )
+        """)
+
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+    conn.commit()
+    conn.close()
+
+
+def migrate_v8() -> None:
+    """Apply schema v8: add model_export_artifacts table."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT version FROM schema_version WHERE version = ?", (_SCHEMA_VERSION,)
+        ).fetchone()
+        if row:
+            conn.close()
+            return
+    except Exception:
+        pass
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
+    )
+
+    existing_tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "model_export_artifacts" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE model_export_artifacts (
+                export_id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                spec_id TEXT NOT NULL DEFAULT '',
+                source_model_id TEXT NOT NULL,
+                backend TEXT NOT NULL,
+                precision TEXT NOT NULL DEFAULT 'fp32',
+                artifact_path TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'created',
+                device_name TEXT NOT NULL DEFAULT '',
+                cuda_version TEXT NOT NULL DEFAULT '',
+                tensorrt_version TEXT NOT NULL DEFAULT '',
+                input_shape TEXT NOT NULL DEFAULT '',
+                export_config_json TEXT NOT NULL DEFAULT '{}',
+                metrics_json TEXT NOT NULL DEFAULT '{}',
+                error_message TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (project_id) REFERENCES projects(project_id),
+                FOREIGN KEY (source_model_id) REFERENCES model_versions(model_id)
+            )
+        """)
+
     conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
     conn.commit()
     conn.close()

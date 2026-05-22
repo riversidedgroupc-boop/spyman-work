@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
+from core.id_utils import generate_id
 from core.storage import delete, fetch_all, fetch_one, insert, update
 
 PROJECT_DATA_ROOT = os.path.join(
@@ -57,7 +58,7 @@ class InspectionProject:
 
 
 def _gen_id() -> str:
-    return datetime.now().strftime("PROJ_%Y%m%d_%H%M%S_%f")
+    return generate_id("PROJ")
 
 
 def create_project(

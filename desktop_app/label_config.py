@@ -82,6 +82,34 @@ def remove_label(value: str) -> None:
     save_label_options(options)
 
 
+def move_label(value: str, target_index: int) -> LabelOption:
+    options = load_label_options()
+    source_index = next((index for index, opt in enumerate(options) if opt.value == value), -1)
+    if source_index < 0:
+        raise ValueError(f"unknown label value: {value}")
+
+    option = options.pop(source_index)
+    bounded_index = max(0, min(target_index, len(options)))
+    options.insert(bounded_index, option)
+    save_label_options(options)
+    return option
+
+
+def rename_label(value: str, label: str) -> LabelOption:
+    label = label.strip()
+    if not label:
+        raise ValueError("label is required")
+
+    options = load_label_options()
+    for index, option in enumerate(options):
+        if option.value == value:
+            renamed = LabelOption(value=option.value, label=label, color=option.color)
+            options[index] = renamed
+            save_label_options(options)
+            return renamed
+    raise ValueError(f"unknown label value: {value}")
+
+
 def label_text(value: str) -> str:
     for option in load_label_options():
         if option.value == value:

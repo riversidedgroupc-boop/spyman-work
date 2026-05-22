@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
+from core.id_utils import generate_id
 from core.storage import delete, fetch_all, fetch_one, insert, update
 
 
@@ -21,6 +22,7 @@ class CaptureSession:
     captured_image_count: int = 0
     line_speed_mpm: float = 80.0
     sampling_mode: str = "directory_watch"
+    dataset_task_type: str = ""
     status: str = "created"
     output_dir: str | None = None
     started_at: str | None = None
@@ -41,6 +43,7 @@ class CaptureSession:
             "captured_image_count": self.captured_image_count,
             "line_speed_mpm": self.line_speed_mpm,
             "sampling_mode": self.sampling_mode,
+            "dataset_task_type": self.dataset_task_type,
             "status": self.status,
             "output_dir": self.output_dir,
             "started_at": self.started_at,
@@ -63,6 +66,7 @@ class CaptureSession:
             captured_image_count=d.get("captured_image_count", 0),
             line_speed_mpm=d.get("line_speed_mpm", 80.0),
             sampling_mode=d.get("sampling_mode", "directory_watch"),
+            dataset_task_type=d.get("dataset_task_type", ""),
             status=d.get("status", "created"),
             output_dir=d.get("output_dir"),
             started_at=d.get("started_at"),
@@ -73,7 +77,7 @@ class CaptureSession:
 
 
 def _gen_id() -> str:
-    return datetime.now().strftime("SESS_%Y%m%d_%H%M%S_%f")
+    return generate_id("SESS")
 
 
 def create_capture_session(
@@ -86,6 +90,7 @@ def create_capture_session(
     target_image_count: int = 100,
     line_speed_mpm: float = 80.0,
     sampling_mode: str = "directory_watch",
+    dataset_task_type: str = "",
     output_dir: str | None = None,
 ) -> CaptureSession:
     s = CaptureSession(
@@ -99,6 +104,7 @@ def create_capture_session(
         target_image_count=target_image_count,
         line_speed_mpm=line_speed_mpm,
         sampling_mode=sampling_mode,
+        dataset_task_type=dataset_task_type,
         output_dir=output_dir,
     )
     insert("capture_sessions", s.to_dict())
@@ -151,7 +157,7 @@ def add_captured_image(session_id: str, project_id: str, image_path: str,
     if existing:
         return existing[0]["image_id"]
 
-    img_id = datetime.now().strftime("IMG_%Y%m%d_%H%M%S_%f")
+    img_id = generate_id("IMG")
     insert("captured_images", {
         "image_id": img_id,
         "session_id": session_id,
@@ -206,6 +212,21 @@ def get_classification_counts(session_id: str) -> dict[str, int]:
 
 def set_image_classification(image_id: str, label: str) -> None:
     update("captured_images", image_id, {"classification_label": label}, "image_id")
+
+
+def set_session_task_type(session_id: str, task_type: str) -> bool:
+    """Set the dataset_task_type on a capture session. Returns True if updated."""
+    existing = get_capture_session(session_id)
+    if existing is None:
+        return False
+    update("capture_sessions", session_id, {"dataset_task_type": task_type}, "session_id")
+    return True
+
+
+def get_session_task_type(session_id: str) -> str:
+    """Get the dataset_task_type for a session, or empty string."""
+    session = get_capture_session(session_id)
+    return session.dataset_task_type if session else ""
 
 
 def session_output_root(project_id: str) -> str:

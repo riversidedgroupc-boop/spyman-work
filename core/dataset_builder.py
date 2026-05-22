@@ -76,12 +76,13 @@ def build_yolo_dataset_from_session(
         val_every = max(2, round(1 / min(val_ratio, 0.5)))
 
     total = len(rows)
+    used_names_by_split: dict[str, set[str]] = {"train": set(), "val": set()}
     for index, row in enumerate(rows):
         src = row.get("image_path", "")
         if not os.path.isfile(src):
             continue
         split = "val" if val_every and (index + 1) % val_every == 0 else "train"
-        image_name = row.get("image_name") or os.path.basename(src)
+        image_name = _unique_output_name(row, src, used_names_by_split[split])
         dst_image = os.path.join(dataset_dir, "images", split, image_name)
         shutil.copy2(src, dst_image)
 
@@ -146,6 +147,27 @@ def build_yolo_dataset_from_session(
 def _default_version_name() -> str:
     from datetime import datetime
     return datetime.now().strftime("v%Y%m%d_%H%M%S")
+
+
+def _unique_output_name(row: dict, src: str, used_names: set[str]) -> str:
+    image_name = row.get("image_name") or os.path.basename(src)
+    if image_name not in used_names:
+        used_names.add(image_name)
+        return image_name
+    stem, ext = os.path.splitext(image_name)
+    image_id = str(row.get("image_id") or "").strip()
+    camera_id = str(row.get("camera_id") or "").strip()
+    prefix = image_id or camera_id
+    if not prefix:
+        prefix = str(len(used_names) + 1)
+    safe_prefix = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in prefix)
+    candidate = f"{safe_prefix}_{stem}{ext}"
+    suffix = 2
+    while candidate in used_names:
+        candidate = f"{safe_prefix}_{stem}_{suffix}{ext}"
+        suffix += 1
+    used_names.add(candidate)
+    return candidate
 
 
 def _report(cb: Callable[[str, float], None] | None, msg: str, pct: float) -> None:

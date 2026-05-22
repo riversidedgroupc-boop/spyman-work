@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
-    QLabel, QSplitter, QTabWidget, QPushButton,
+    QSplitter, QTabWidget, QPushButton,
 )
 
 from desktop_app.constants import (
@@ -19,6 +19,7 @@ from desktop_app.widgets.status_bar import AppStatusBar
 from desktop_app.pages.project_center_page import ProjectCenterPage
 from desktop_app.pages.capture_page import CapturePage
 from desktop_app.pages.sample_classification_page import SampleClassificationPage
+from desktop_app.pages.bbox_annotation_page import BboxAnnotationPage
 from desktop_app.pages.dataset_version_page import DatasetVersionPage
 from desktop_app.pages.training_page import TrainingPage
 from desktop_app.pages.training_jobs_page import TrainingJobsPage
@@ -30,15 +31,18 @@ from desktop_app.app_context import AppContext
 from desktop_app.pages.production_run_page import ProductionRunPage
 from desktop_app.pages.device_config_page import DeviceConfigPage
 from desktop_app.pages.camera_config_page import CameraConfigPage
-from desktop_app.pages.device.commissioning_panel import CommissioningPanel
+from desktop_app.pages.camera_management_page import CameraManagementPage
 from desktop_app.pages.plc_config_page import PlcConfigPage
 from desktop_app.pages.encoder_config_page import EncoderConfigPage
-from desktop_app.pages.defect_trace_page import DefectTracePage
 from desktop_app.pages.report_page import ReportPage
 from desktop_app.pages.system_settings_page import SystemSettingsPage
 from desktop_app.pages.log_center_page import LogCenterPage
 from desktop_app.pages.backup_restore_page import BackupRestorePage
 from desktop_app.pages.help_page import HelpPage
+from desktop_app.pages.benchmark_page import BenchmarkPage
+from desktop_app.pages.field_workflow_page import FieldWorkflowPage
+from desktop_app.pages.hybrid_retest_page import HybridRetestPage
+from desktop_app.pages.model_export_page import ModelExportPage
 
 
 class MainWindow(QMainWindow):
@@ -92,9 +96,11 @@ class MainWindow(QMainWindow):
         self._data_tabs = QTabWidget()
         self._capture_page = CapturePage()
         self._classify_page = SampleClassificationPage()
+        self._bbox_page = BboxAnnotationPage()
         self._dataset_page = DatasetVersionPage()
         self._data_tabs.addTab(self._capture_page, tr("capture.title"))
         self._data_tabs.addTab(self._classify_page, tr("classify.title"))
+        self._data_tabs.addTab(self._bbox_page, tr("bbox.page_title"))
         self._data_tabs.addTab(self._dataset_page, tr("dataset.title"))
         data_layout2 = QVBoxLayout(data_container)
         data_layout2.setContentsMargins(0, 0, 0, 0)
@@ -111,6 +117,8 @@ class MainWindow(QMainWindow):
         self._training_tabs.addTab(self._training_page, tr("training.title"))
         self._training_tabs.addTab(self._training_jobs_page, tr("jobs.title"))
         self._training_tabs.addTab(self._model_version_page, tr("model.title"))
+        self._model_export_page = ModelExportPage()
+        self._training_tabs.addTab(self._model_export_page, tr("export.title"))
         tl = QVBoxLayout(training_container)
         tl.setContentsMargins(0, 0, 0, 0)
         tl.addWidget(self._training_tabs)
@@ -141,12 +149,12 @@ class MainWindow(QMainWindow):
         self._device_tabs = QTabWidget()
         self._device_config_page = DeviceConfigPage()
         self._camera_config_page = CameraConfigPage()
-        self._commissioning_panel = CommissioningPanel()
+        self._camera_management_page = CameraManagementPage()
         self._plc_config_page = PlcConfigPage()
         self._encoder_config_page = EncoderConfigPage()
         self._device_tabs.addTab(self._device_config_page, tr("device.title"))
         self._device_tabs.addTab(self._camera_config_page, tr("camera.title"))
-        self._device_tabs.addTab(self._commissioning_panel, "现场联调")
+        self._device_tabs.addTab(self._camera_management_page, tr("camera.management"))
         self._device_tabs.addTab(self._plc_config_page, tr("plc.title"))
         self._device_tabs.addTab(self._encoder_config_page, tr("encoder.title"))
         dl = QVBoxLayout(device_container)
@@ -175,6 +183,18 @@ class MainWindow(QMainWindow):
         self._help_page = HelpPage()
         self._pages.addWidget(self._help_page)
 
+        # Field workflow page (Phase B)
+        self._field_workflow_page = FieldWorkflowPage()
+        self._pages.addWidget(self._field_workflow_page)
+
+        # Hybrid retest page (Phase D)
+        self._hybrid_retest_page = HybridRetestPage()
+        self._pages.addWidget(self._hybrid_retest_page)
+
+        # Benchmark page
+        self._benchmark_page = BenchmarkPage()
+        self._pages.addWidget(self._benchmark_page)
+
         # Real page: project center
         self._project_center = ProjectCenterPage()
         self._pages.addWidget(self._project_center)
@@ -200,11 +220,13 @@ class MainWindow(QMainWindow):
         """Re-set tab labels on language change."""
         self._data_tabs.setTabText(0, tr("capture.title"))
         self._data_tabs.setTabText(1, tr("classify.title"))
-        self._data_tabs.setTabText(2, tr("dataset.title"))
+        self._data_tabs.setTabText(2, tr("bbox.page_title"))
+        self._data_tabs.setTabText(3, tr("dataset.title"))
 
         self._training_tabs.setTabText(0, tr("training.title"))
         self._training_tabs.setTabText(1, tr("jobs.title"))
         self._training_tabs.setTabText(2, tr("model.title"))
+        self._training_tabs.setTabText(3, tr("export.title"))
 
         self._eval_tabs.setTabText(0, tr("inference.title"))
         self._eval_tabs.setTabText(1, tr("eval.title"))
@@ -212,7 +234,7 @@ class MainWindow(QMainWindow):
 
         self._device_tabs.setTabText(0, tr("device.title"))
         self._device_tabs.setTabText(1, tr("camera.title"))
-        self._device_tabs.setTabText(2, "现场联调")
+        self._device_tabs.setTabText(2, tr("camera.management"))
         self._device_tabs.setTabText(3, tr("plc.title"))
         self._device_tabs.setTabText(4, tr("encoder.title"))
 
@@ -246,6 +268,12 @@ class MainWindow(QMainWindow):
             self._pages.setCurrentWidget(self._backup_page)
         elif page_id == "help":
             self._pages.setCurrentWidget(self._help_page)
+        elif page_id == "benchmark":
+            self._pages.setCurrentWidget(self._benchmark_page)
+        elif page_id == "field_workflow":
+            self._pages.setCurrentWidget(self._field_workflow_page)
+        elif page_id == "hybrid_retest":
+            self._pages.setCurrentWidget(self._hybrid_retest_page)
         self._update_status()
 
     def _on_context_changed(self, _value: str) -> None:

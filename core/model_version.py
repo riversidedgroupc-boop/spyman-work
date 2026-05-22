@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from core.id_utils import generate_id
 from core.storage import delete, fetch_all, fetch_one, insert, update
 
 MODEL_STATUSES = [
@@ -66,7 +67,7 @@ class ModelVersion:
 
 
 def _gen_id() -> str:
-    return datetime.now().strftime("MODEL_%Y%m%d_%H%M%S_%f")
+    return generate_id("MODEL")
 
 
 def create_model_version(project_id: str, model_name: str, **kwargs) -> ModelVersion:

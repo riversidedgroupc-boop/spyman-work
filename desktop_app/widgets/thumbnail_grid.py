@@ -3,15 +3,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal, Qt, QSize
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from desktop_app.display import CLASS_LABEL_OPTIONS, class_label
 from desktop_app.i18n import tr, bind, I18nManager
-from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QComboBox, QLabel,
-)
+
+UNLABELED_FILTER_VALUE = "__UNLABELED__"
 
 
 class ThumbnailGrid(QWidget):
@@ -19,6 +26,7 @@ class ThumbnailGrid(QWidget):
 
     image_selected = Signal(str)  # image path
     selection_changed = Signal(list)  # list of image paths
+    filter_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -40,7 +48,7 @@ class ThumbnailGrid(QWidget):
         filter_layout.addWidget(self._camera_filter_label)
         self._camera_filter = QComboBox()
         self._camera_filter.addItem(tr("app.all"), "")
-        self._camera_filter.currentIndexChanged.connect(self._apply_filter)
+        self._camera_filter.currentIndexChanged.connect(self._on_filter_changed)
         filter_layout.addWidget(self._camera_filter)
 
         self._label_filter_label = QLabel()
@@ -48,9 +56,10 @@ class ThumbnailGrid(QWidget):
         filter_layout.addWidget(self._label_filter_label)
         self._label_filter = QComboBox()
         self._label_filter.addItem(tr("app.all"), "")
+        self._label_filter.addItem(tr("classify.unlabeled"), UNLABELED_FILTER_VALUE)
         for value, label in CLASS_LABEL_OPTIONS:
             self._label_filter.addItem(label, value)
-        self._label_filter.currentIndexChanged.connect(self._apply_filter)
+        self._label_filter.currentIndexChanged.connect(self._on_filter_changed)
         filter_layout.addWidget(self._label_filter)
 
         filter_layout.addStretch()
@@ -68,12 +77,16 @@ class ThumbnailGrid(QWidget):
         self._list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self._list.setGridSize(QSize(124, 142))
         self._list.setSpacing(3)
+        self._list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._list.itemClicked.connect(self._on_item_clicked)
         self._list.itemSelectionChanged.connect(self._on_selection_changed)
         layout.addWidget(self._list, 1)
 
     def _refresh_text(self, lang: str = "") -> None:
         """Rebuild filter combo items on language change."""
+        current_camera = self._camera_filter.currentData()
+        current_label = self._label_filter.currentData()
+
         self._camera_filter.blockSignals(True)
         self._camera_filter.clear()
         self._camera_filter.addItem(tr("app.all"), "")
@@ -84,13 +97,16 @@ class ThumbnailGrid(QWidget):
         for c in sorted(cam_set):
             if c:
                 self._camera_filter.addItem(c, c)
+        self._restore_combo_value(self._camera_filter, current_camera)
         self._camera_filter.blockSignals(False)
 
         self._label_filter.blockSignals(True)
         self._label_filter.clear()
         self._label_filter.addItem(tr("app.all"), "")
+        self._label_filter.addItem(tr("classify.unlabeled"), UNLABELED_FILTER_VALUE)
         for value, label in self._label_options:
             self._label_filter.addItem(label, value)
+        self._restore_combo_value(self._label_filter, current_label)
         self._label_filter.blockSignals(False)
 
         self._apply_filter()
@@ -112,12 +128,14 @@ class ThumbnailGrid(QWidget):
             cam = self._image_cameras.get(p, "")
             cam_set.add(cam)
 
+        current_camera = self._camera_filter.currentData()
         self._camera_filter.blockSignals(True)
         self._camera_filter.clear()
         self._camera_filter.addItem(tr("app.all"), "")
         for c in sorted(cam_set):
             if c:
                 self._camera_filter.addItem(c, c)
+        self._restore_combo_value(self._camera_filter, current_camera)
         self._camera_filter.blockSignals(False)
 
         self._apply_filter()
@@ -126,6 +144,9 @@ class ThumbnailGrid(QWidget):
         self._label_options = list(options)
         self._refresh_text()
 
+    def has_active_filter(self) -> bool:
+        return bool(self._camera_filter.currentData() or self._label_filter.currentData())
+
     def select_path(self, path: str) -> None:
         self._list.clearSelection()
         for i in range(self._list.count()):
@@ -133,7 +154,7 @@ class ThumbnailGrid(QWidget):
             if item.data(Qt.ItemDataRole.UserRole) == path:
                 self._list.setCurrentItem(item)
                 item.setSelected(True)
-                self._list.scrollToItem(item)
+                self._list.scrollToItem(item, QListWidget.ScrollHint.PositionAtCenter)
                 break
 
     def _apply_filter(self) -> None:
@@ -146,7 +167,10 @@ class ThumbnailGrid(QWidget):
             lbl = self._image_labels.get(full_path, "")
             if cam_filter and cam != cam_filter:
                 continue
-            if label_filter and lbl != label_filter:
+            if label_filter == UNLABELED_FILTER_VALUE:
+                if lbl:
+                    continue
+            elif label_filter and lbl != label_filter:
                 continue
 
             thumb = QPixmap(full_path)
@@ -169,6 +193,14 @@ class ThumbnailGrid(QWidget):
 
         bind(self._count_label, "thumb.count", count=self._list.count())
 
+    def _restore_combo_value(self, combo: QComboBox, value: str | None) -> None:
+        index = combo.findData(value)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+
+    def _on_filter_changed(self) -> None:
+        self._apply_filter()
+        self.filter_changed.emit()
+
     def _on_item_clicked(self, item: QListWidgetItem) -> None:
         path = item.data(Qt.ItemDataRole.UserRole)
         self.image_selected.emit(path)
@@ -186,6 +218,12 @@ class ThumbnailGrid(QWidget):
             self._list.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(self._list.count())
             if self._list.item(i).isSelected()
+        ]
+
+    def get_visible_paths(self) -> list[str]:
+        return [
+            self._list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(self._list.count())
         ]
 
     def get_all_labels(self) -> dict[str, str]:

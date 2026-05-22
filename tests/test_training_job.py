@@ -51,3 +51,17 @@ def test_update_job_status(ctx):
     j = create_training_job(ctx["project_id"], ctx["spec_id"], "Status Test")
     u = update_training_job(j.job_id, status="running")
     assert u.status == "running"
+
+
+def test_parse_training_progress_from_epoch_line():
+    from desktop_app.workers.training_worker import parse_training_progress
+
+    assert parse_training_progress("  7/100      2.1G      0.91      1.23", 100) == (7, 100)
+    assert parse_training_progress("100/100      2.0G      0.12      0.20", 100) == (100, 100)
+
+
+def test_parse_training_progress_ignores_non_epoch_lines():
+    from desktop_app.workers.training_worker import parse_training_progress
+
+    assert parse_training_progress("Ultralytics YOLOv8.1.0 Python", 100) is None
+    assert parse_training_progress("optimizer: AdamW(lr=0.001)", 100) is None

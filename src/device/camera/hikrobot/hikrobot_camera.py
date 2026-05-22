@@ -64,10 +64,25 @@ class HikrobotLineScanCamera(LineScanDevice):
             "LineRate": 20000,
             "PixelFormat": "Mono8",
             "Width": 2048,
+            "Height": 1024,
             "TriggerMode": "On",
             "TriggerSource": "Line0",
+            "AcquisitionMode": "Continuous",
+            "GevSCPSPacketSize": 9000,
+            "GevSCPD": 0,
+            "BufferCount": 16,
         }
-        self._int_params = {"Width", "Height", "OffsetX", "OffsetY", "LineRate", "PayloadSize"}
+        self._int_params = {
+            "Width",
+            "Height",
+            "OffsetX",
+            "OffsetY",
+            "LineRate",
+            "PayloadSize",
+            "GevSCPSPacketSize",
+            "GevSCPD",
+            "BufferCount",
+        }
         self._bool_params = {"ReverseX", "ReverseY"}
 
     # ------------------------------------------------------------------

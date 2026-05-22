@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from core.training_job import TrainingJob
 from core.training_result import TrainingResult
 from trainers.base import BaseTrainer
 from trainers.registry import register
+
+
+def _ensure_ultralytics_config_dir() -> None:
+    """Keep Ultralytics settings inside the project when the user dir is locked."""
+    config_dir = Path("outputs/ultralytics").resolve()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
 
 
 @register("yolo")
@@ -21,6 +29,7 @@ class YOLOTrainer(BaseTrainer):
         self._result: TrainingResult | None = None
 
     def prepare(self) -> None:
+        _ensure_ultralytics_config_dir()
         try:
             import ultralytics  # noqa: F401
         except ImportError:
@@ -29,6 +38,7 @@ class YOLOTrainer(BaseTrainer):
             )
 
     def train(self, progress_callback=None) -> None:
+        _ensure_ultralytics_config_dir()
         from ultralytics import YOLO
 
         # training_config is stored as JSON string in TrainingJob
