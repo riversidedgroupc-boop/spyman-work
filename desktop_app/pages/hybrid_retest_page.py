@@ -189,7 +189,9 @@ class HybridRetestPage(QWidget):
 
     def _refresh_models(self) -> None:
         self._yolo_combo.clear()
+        self._anomaly_combo.clear()
         self._yolo_combo.addItem(tr("hybrid_retest.select_model"), "")
+        self._anomaly_combo.addItem(tr("hybrid_retest.no_anomaly_model"), "")
         pid = self._get_project_id()
         if not pid:
             return
@@ -198,6 +200,9 @@ class HybridRetestPage(QWidget):
             if mv.model_type == "yolo" and mv.model_path:
                 label = f"{mv.model_name} ({mv.model_id})"
                 self._yolo_combo.addItem(label, mv.model_id)
+            elif mv.model_type == "patchcore" and mv.model_path:
+                label = f"{mv.model_name} ({mv.model_id})"
+                self._anomaly_combo.addItem(label, mv.model_id)
 
     # ── Browse ──────────────────────────────────────────────────
 

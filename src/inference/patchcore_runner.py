@@ -10,8 +10,10 @@ Supports three operating modes:
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from src.fusion.decision_types import AnomalyResult, UnifiedPrediction
@@ -27,7 +29,7 @@ class PatchCoreRunner(BaseRunner):
     Parameters
     ----------
     config : dict | None
-        Keys: ``mode`` ("mock"|"import"|"real"), ``model_path``, ``result_file``,
+        Keys: ``mode`` ("mock"|"import"|"real"|"statistical"), ``model_path``, ``result_file``,
         ``score_threshold`` (default 0.65), ``input_size`` (default [256, 256]).
     """
 
@@ -40,12 +42,15 @@ class PatchCoreRunner(BaseRunner):
         self.input_size: list[int] = list(self.config.get("input_size", [256, 256]))
         self._imported_results: dict[str, dict[str, Any]] = {}
         self._real_model: Any = None
+        self._statistical_model: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ load_model
 
     def load_model(self) -> None:
         """Load model or switch to fallback mode."""
-        if self.mode == "real":
+        if self.mode == "statistical":
+            self._load_statistical_model()
+        elif self.mode == "real":
             self._load_real_model()
         elif self.mode == "import":
             self._load_imported_results()
@@ -58,6 +63,23 @@ class PatchCoreRunner(BaseRunner):
             )
             self.mode = "mock"
             self._is_loaded = True
+
+    def _load_statistical_model(self) -> None:
+        """Load the JSON model produced by the lightweight PatchCore trainer."""
+        model_file = Path(self.model_path) if self.model_path else None
+        if not model_file or not model_file.exists():
+            raise FileNotFoundError(f"PatchCore statistical model file not found: {self.model_path}")
+        with open(model_file, encoding="utf-8") as f:
+            model = json.load(f)
+        if model.get("feature_backend") != "statistical_patch_features":
+            raise ValueError(
+                "Unsupported PatchCore model artifact. "
+                "Expected feature_backend=statistical_patch_features."
+            )
+        if not model.get("coreset"):
+            raise ValueError("PatchCore statistical model has empty coreset")
+        self._statistical_model = model
+        self._is_loaded = True
 
     def _load_real_model(self) -> None:
         """Attempt to load the PatchCore model via anomalib."""
@@ -154,6 +176,20 @@ class PatchCoreRunner(BaseRunner):
                 runtime_ms=elapsed,
             )
 
+        if self.mode == "statistical":
+            anomaly_score, raw_distance = self._predict_statistical(img_path_str)
+            elapsed = (time.perf_counter() - t0) * 1000.0
+            return UnifiedPrediction(
+                image_path=img_path_str,
+                model_name="patchcore",
+                anomaly=AnomalyResult(
+                    image_score=anomaly_score,
+                    threshold=self.score_threshold,
+                ),
+                runtime_ms=elapsed,
+                extra={"raw_anomaly_distance": raw_distance},
+            )
+
         # ---- mock mode ---------------------------------------------------------
         if self.mode == "mock":
             digest = hashlib.sha256(img_path_str.encode("utf-8")).hexdigest()
@@ -175,8 +211,72 @@ class PatchCoreRunner(BaseRunner):
             "Real PatchCore inference is not implemented yet. Use import or mock mode."
         )
 
+    def _predict_statistical(self, image_path: str) -> tuple[float, float]:
+        """Score an image against the saved statistical coreset."""
+        import cv2
+        import numpy as np
+
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Unable to read image for PatchCore inference: {image_path}")
+        image_size = int(self._statistical_model.get("image_size", self.input_size[0]))
+        resized = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_AREA)
+        feature = np.asarray(_extract_statistical_feature_vector(resized), dtype=np.float32)
+        coreset = np.asarray(self._statistical_model["coreset"], dtype=np.float32)
+        if coreset.ndim != 2 or coreset.shape[1] != feature.shape[0]:
+            raise ValueError(
+                f"PatchCore feature dimension mismatch: model={coreset.shape}, "
+                f"image={feature.shape[0]}"
+            )
+        distances = np.linalg.norm(coreset - feature, axis=1)
+        raw_distance = float(distances.min())
+        threshold = float(self._statistical_model.get("threshold") or self.score_threshold or 1.0)
+        normalized = raw_distance / max(threshold, 1e-6)
+        return float(max(0.0, min(1.0, normalized))), raw_distance
+
+    def predict_image(self, image_path: str | Path) -> object:
+        """Compatibility adapter for hybrid retest workers."""
+        prediction = self.predict(image_path)
+        return SimpleNamespace(
+            image_score=prediction.anomaly.image_score,
+            heatmap_path=prediction.anomaly.heatmap_path,
+        )
+
     # -------------------------------------------------------------- predict_batch
 
     def predict_batch(self, image_paths: list[str | Path]) -> list[UnifiedPrediction]:
         """Infer on a batch sequentially."""
         return [self.predict(p) for p in image_paths]
+
+
+def _extract_statistical_feature_vector(image) -> list[float]:
+    """Extract the same deterministic features used by the lightweight trainer."""
+    import cv2
+    import numpy as np
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32) / 255.0
+    edges = cv2.Canny((gray * 255).astype("uint8"), 50, 150).astype(np.float32) / 255.0
+
+    values: list[float] = [
+        float(gray.mean()),
+        float(gray.std()),
+        float(np.percentile(gray, 5)),
+        float(np.percentile(gray, 50)),
+        float(np.percentile(gray, 95)),
+        float(edges.mean()),
+    ]
+    for channel in range(3):
+        ch = hsv[:, :, channel]
+        values.extend([float(ch.mean()), float(ch.std())])
+
+    h, w = gray.shape
+    grid = 4
+    for gy in range(grid):
+        for gx in range(grid):
+            patch = gray[
+                int(gy * h / grid):int((gy + 1) * h / grid),
+                int(gx * w / grid):int((gx + 1) * w / grid),
+            ]
+            values.extend([float(patch.mean()), float(patch.std())])
+    return values

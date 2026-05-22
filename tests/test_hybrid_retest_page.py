@@ -197,6 +197,34 @@ def test_anomaly_combo_has_no_model_placeholder(qapp: QApplication):
     w.close()
 
 
+def test_model_combo_populated_with_patchcore_models(
+    qapp: QApplication, ctx: dict[str, str],
+):
+    """With context and registered PatchCore model, anomaly combo shows it."""
+    from core.model_version import create_model_version
+
+    _set_app_context(ctx)
+    create_model_version(
+        project_id=ctx["project_id"],
+        model_name="PatchCore model",
+        model_type="patchcore",
+        model_path="D:/fake/patchcore_model.json",
+    )
+
+    from desktop_app.pages.hybrid_retest_page import HybridRetestPage
+
+    w = HybridRetestPage()
+    w._refresh_models()
+
+    found = False
+    for i in range(w._anomaly_combo.count()):
+        if w._anomaly_combo.itemData(i):
+            found = True
+            break
+    assert found, "No PatchCore model found in anomaly combo"
+    w.close()
+
+
 # ── Guard conditions ────────────────────────────────────────────────
 
 def test_start_without_project_shows_info(

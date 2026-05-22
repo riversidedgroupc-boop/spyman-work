@@ -536,3 +536,43 @@ def test_build_yolo_runner_passes_confidence_to_runner(
     assert captured["model_path"] == str(model_path)
     assert captured["config"] == {"confidence": 0.12}
     assert captured["loaded"] is True
+
+
+def test_build_anomaly_runner_loads_patchcore_model(ctx: dict[str, str], tmp_path):
+    """_build_anomaly_runner returns a loaded PatchCoreRunner for patchcore model versions."""
+    from core.hybrid_retest import _build_anomaly_runner
+    from core.model_version import create_model_version
+
+    model_path = tmp_path / "patchcore_model.json"
+    model_path.write_text(
+        """
+        {
+          "model_type": "patchcore",
+          "feature_backend": "statistical_patch_features",
+          "image_size": 16,
+          "threshold": 0.25,
+          "coreset": [[0.0]]
+        }
+        """,
+        encoding="utf-8",
+    )
+    mv = create_model_version(
+        project_id=ctx["project_id"],
+        model_name="patchcore-model",
+        model_type="patchcore",
+        model_path=str(model_path),
+    )
+
+    runner = _build_anomaly_runner(mv.model_id, score_threshold=0.42)
+
+    assert runner is not None
+    assert runner.is_loaded is True
+    assert runner.score_threshold == 0.42
+
+
+def test_build_anomaly_runner_raises_for_missing_model(ctx: dict[str, str]):
+    """_build_anomaly_runner fails loudly for invalid anomaly model IDs."""
+    from core.hybrid_retest import _build_anomaly_runner
+
+    with pytest.raises(ValueError, match="anomaly model version"):
+        _build_anomaly_runner("MODEL_missing")

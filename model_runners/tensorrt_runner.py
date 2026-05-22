@@ -11,13 +11,28 @@ class TensorRTModelRunner:
 
     Duck-typed: has predict_image(path) returning object with .detections attribute.
 
+    .. note::
+
+        **Phase E status (2026-05):** Engine deserialization and CUDA context
+        creation work correctly. Full inference (preprocessing, GPU memory
+        management, postprocessing, NMS) is not yet implemented.
+        ``predict_image()`` raises ``NotImplementedError``.
+        Use ``OnnxModelRunner`` for GPU-accelerated inference in production,
+        or ``YoloModelRunner`` (PyTorch) for development.
+
+        Check ``can_predict`` before calling ``predict_image()`` — the
+        ``backend_factory`` uses this flag to skip TensorRT runners.
+
     Attributes
     ----------
     runner_name : str
         Constant "tensorrt" identifier for duck-typing by backend_factory.
+    can_predict : bool
+        False until full inference pipeline is implemented (Phase E+).
     """
 
     runner_name: str = "tensorrt"
+    can_predict: bool = False
 
     def __init__(
         self,

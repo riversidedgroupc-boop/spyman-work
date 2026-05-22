@@ -215,15 +215,27 @@ def export_yolo_to_onnx(
         from ultralytics import YOLO
 
         model = YOLO(model_path)
-        model.export(format="onnx", imgsz=imgsz, opset=opset, simplify=simplify)
-        # ultralytics places the .onnx next to the .pt by default; move it to output_dir
-        default_onnx = model_path.replace(".pt", ".onnx")
-        if os.path.isfile(default_onnx) and os.path.abspath(default_onnx) != os.path.abspath(output_path):
+        exported_path: str = model.export(format="onnx", imgsz=imgsz, opset=opset, simplify=simplify)
+
+        # Use ultralytics return value to confirm actual output location
+        actual_onnx = exported_path if exported_path and os.path.isfile(exported_path) else ""
+        if not actual_onnx:
+            # Fallback: check default location next to .pt
+            default_onnx = model_path.replace(".pt", ".onnx")
+            if os.path.isfile(default_onnx):
+                actual_onnx = default_onnx
+
+        if actual_onnx and os.path.abspath(actual_onnx) != os.path.abspath(output_path):
             os.makedirs(output_dir, exist_ok=True)
-            # If target exists, remove it first (Windows rename needs this)
             if os.path.isfile(output_path):
                 os.remove(output_path)
-            os.rename(default_onnx, output_path)
+            os.rename(actual_onnx, output_path)
+
+        if not os.path.isfile(output_path):
+            raise FileNotFoundError(
+                f"ONNX export succeeded but output file not found at {output_path}. "
+                f"ultralytics returned: {exported_path}"
+            )
 
         update_export_artifact(
             artifact.export_id,
@@ -325,16 +337,27 @@ def export_yolo_to_tensorrt(
         if precision == "int8" and calibration_dir:
             export_kwargs["data"] = calibration_dir
 
-        model.export(**export_kwargs)
-        # ultralytics places the .engine next to the .pt by default
-        default_engine = model_path.replace(".pt", ".engine")
-        if os.path.isfile(default_engine) and os.path.abspath(default_engine) != os.path.abspath(
-            output_path
-        ):
+        exported_path: str = model.export(**export_kwargs)
+
+        # Use ultralytics return value to confirm actual output location
+        actual_engine = exported_path if exported_path and os.path.isfile(exported_path) else ""
+        if not actual_engine:
+            # Fallback: check default location next to .pt
+            default_engine = model_path.replace(".pt", ".engine")
+            if os.path.isfile(default_engine):
+                actual_engine = default_engine
+
+        if actual_engine and os.path.abspath(actual_engine) != os.path.abspath(output_path):
             os.makedirs(output_dir, exist_ok=True)
             if os.path.isfile(output_path):
                 os.remove(output_path)
-            os.rename(default_engine, output_path)
+            os.rename(actual_engine, output_path)
+
+        if not os.path.isfile(output_path):
+            raise FileNotFoundError(
+                f"TensorRT export succeeded but output file not found at {output_path}. "
+                f"ultralytics returned: {exported_path}"
+            )
 
         update_export_artifact(
             artifact.export_id,

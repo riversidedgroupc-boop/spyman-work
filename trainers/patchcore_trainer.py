@@ -1,26 +1,9 @@
-"""PatchCore trainer — anomaly detection via coreset construction.
-
-V6: Stub with V7 implementation plan.
-V7: Full PatchCore training using anomalib library.
-
-V7 Implementation Plan
------------------------
-1. Load a pre-trained backbone (wide_resnet50_2 default) from torchvision
-2. Extract features from all OK (good) training images
-3. Build coreset via greedy subsampling (PatchCore algorithm)
-4. Save coreset + backbone config to model_path directory
-5. Report metrics: coreset_size, feature_dim, coverage
-
-Architecture note:
-  PatchCore creates a memory bank of nominal features and uses
-  nearest-neighbor distance for anomaly scoring at inference time.
-  There is no traditional "training" loop — the coreset construction
-  is the training step.
-"""
+"""PatchCore-style trainer — anomaly detection via nominal feature memory bank."""
 from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from core.training_job import TrainingJob
 from core.training_result import TrainingResult
@@ -30,16 +13,12 @@ from trainers.registry import register
 
 @register("patchcore")
 class PatchCoreTrainer(BaseTrainer):
-    """PatchCore anomaly detection trainer.
+    """Lightweight PatchCore-style anomaly trainer.
 
-    V6: Reserved interface — raises NotImplementedError with roadmap.
-    V7: Full coreset construction pipeline.
-
-    Required training_config keys (V7):
-        backbone: str = "wide_resnet50_2"
-        coreset_sampling_ratio: float = 0.1
-        device: str = "cpu"
-        image_size: int = 256
+    The full deep-feature PatchCore backend can replace this later, but this
+    implementation is intentionally real: it scans ``train/good`` images,
+    extracts deterministic image/patch statistics, builds a sampled nominal
+    memory bank, and saves it as a model artifact for anomaly scoring.
     """
 
     trainer_name = "patchcore"
@@ -48,66 +27,150 @@ class PatchCoreTrainer(BaseTrainer):
     def __init__(self, job: TrainingJob):
         super().__init__(job)
         self._result: TrainingResult | None = None
+        self._cfg: dict = {}
+        self._image_paths: list[Path] = []
+        self.output_path = ""
 
     def prepare(self) -> None:
-        """V6: Validate config and environment. V7: Load backbone + scan dataset.
-
-        V7 prepare() will:
-        1. Parse training_config for backbone/device/image_size
-        2. Import anomalib or torchvision for backbone loading
-        3. Validate dataset directory structure (train/good/ must exist)
-        4. Pre-compute image list and feature extraction plan
-        5. Allocate output directory for coreset
-
-        Raises:
-            NotImplementedError: V6 stub.
-        """
+        """Validate dataset and prepare output paths."""
         cfg_raw = self.job.training_config or "{}"
-        cfg: dict = json.loads(cfg_raw) if isinstance(cfg_raw, str) else (cfg_raw or {})
+        self._cfg = json.loads(cfg_raw) if isinstance(cfg_raw, str) else (cfg_raw or {})
 
         dataset_path = self.job.dataset_path
-        if not dataset_path or not os.path.isdir(dataset_path):
+        train_good = Path(dataset_path) / "train" / "good"
+        if not dataset_path or not train_good.is_dir():
             raise FileNotFoundError(
                 f"PatchCore requires a valid dataset_path. "
                 f"Expected structure: {dataset_path}/train/good/"
             )
 
-        # Check for anomalib availability
-        try:
-            import anomalib  # noqa: F401
-            _anomalib_available = True
-        except ImportError:
-            _anomalib_available = False
-
-        raise NotImplementedError(
-            "PatchCore 训练将在 V7 中实现。\n\n"
-            "V7 实现计划:\n"
-            "1. 从 torchvision 加载预训练 backbone (默认 wide_resnet50_2)\n"
-            "2. 提取所有 OK 训练图像的特征\n"
-            "3. 通过贪心降采样构建 coreset (PatchCore 算法核心)\n"
-            "4. 保存 coreset + backbone 配置到模型输出目录\n\n"
-            f"数据集路径: {dataset_path}\n"
-            f"anomalib 可用: {_anomalib_available}\n"
-            f"配置: {json.dumps(cfg, ensure_ascii=False)}"
+        extensions = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+        self._image_paths = sorted(
+            p for p in train_good.iterdir()
+            if p.is_file() and p.suffix.lower() in extensions
         )
+        if len(self._image_paths) < 10:
+            raise ValueError(
+                f"PatchCore requires at least 10 OK training images. Found {len(self._image_paths)}."
+            )
+
+        output_dir = self.job.output_dir or os.path.join("outputs", "train_anomaly", self.job.job_id)
+        os.makedirs(output_dir, exist_ok=True)
+        self.output_path = os.path.join(output_dir, "patchcore_model.json")
 
     def train(self, progress_callback=None) -> None:
-        """V6: Stub. V7: Execute coreset construction.
+        """Build and persist a sampled nominal feature memory bank."""
+        import cv2
+        import numpy as np
 
-        V7 train() will:
-        1. Load backbone and freeze weights
-        2. Extract features from train/good/ images in batches
-        3. Concatenate all nominal features into memory bank
-        4. Run greedy coreset subsampling
-        5. Save coreset.pt and config.json to output directory
-        6. Report progress via progress_callback(percent, message)
-        """
-        raise NotImplementedError(
-            "PatchCore 训练将在 V7 中实现。"
+        features: list[list[float]] = []
+        total = len(self._image_paths)
+        image_size = int(self._cfg.get("image_size", 256))
+        for index, image_path in enumerate(self._image_paths, start=1):
+            image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+            if image is None:
+                continue
+            resized = cv2.resize(image, (image_size, image_size), interpolation=cv2.INTER_AREA)
+            features.append(_extract_feature_vector(resized))
+            if progress_callback:
+                progress_callback(index / total, f"Extracted features {index}/{total}")
+
+        if not features:
+            raise ValueError("No readable OK images found for anomaly training")
+
+        feature_array = np.asarray(features, dtype=np.float32)
+        ratio = float(self._cfg.get("coreset_sampling_ratio", 0.1))
+        ratio = max(0.01, min(1.0, ratio))
+        coreset_size = max(1, int(len(feature_array) * ratio))
+        indices = _farthest_point_sample(feature_array, coreset_size)
+        coreset = feature_array[indices]
+
+        centroid = feature_array.mean(axis=0)
+        distances = np.linalg.norm(feature_array - centroid, axis=1)
+        threshold = float(distances.mean() + 3.0 * distances.std())
+
+        model = {
+            "model_type": "patchcore",
+            "feature_backend": "statistical_patch_features",
+            "backbone": self._cfg.get("backbone", "statistical"),
+            "image_size": image_size,
+            "coreset_sampling_ratio": ratio,
+            "train_image_count": len(features),
+            "feature_dim": int(feature_array.shape[1]),
+            "coreset_size": int(len(coreset)),
+            "threshold": threshold,
+            "centroid": centroid.astype(float).tolist(),
+            "coreset": coreset.astype(float).tolist(),
+        }
+        with open(self.output_path, "w", encoding="utf-8") as f:
+            json.dump(model, f, ensure_ascii=False)
+
+        self._result = TrainingResult(
+            job_id=self.job.job_id,
+            best_model_path=self.output_path,
+            last_model_path=self.output_path,
+            output_dir=os.path.dirname(self.output_path),
+            metrics={
+                "train_image_count": len(features),
+                "feature_dim": int(feature_array.shape[1]),
+                "coreset_size": int(len(coreset)),
+                "threshold": threshold,
+            },
         )
 
     def collect_results(self) -> TrainingResult:
-        """V6: Returns empty result. V7: Returns coreset metrics."""
+        """Return generated model metadata and metrics."""
         if self._result:
             return self._result
         return TrainingResult.empty(self.job.job_id)
+
+
+def _extract_feature_vector(image) -> list[float]:
+    """Extract deterministic image and patch statistics for anomaly training."""
+    import cv2
+    import numpy as np
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32) / 255.0
+    edges = cv2.Canny((gray * 255).astype("uint8"), 50, 150).astype(np.float32) / 255.0
+
+    values: list[float] = [
+        float(gray.mean()),
+        float(gray.std()),
+        float(np.percentile(gray, 5)),
+        float(np.percentile(gray, 50)),
+        float(np.percentile(gray, 95)),
+        float(edges.mean()),
+    ]
+    for channel in range(3):
+        ch = hsv[:, :, channel]
+        values.extend([float(ch.mean()), float(ch.std())])
+
+    h, w = gray.shape
+    grid = 4
+    for gy in range(grid):
+        for gx in range(grid):
+            patch = gray[
+                int(gy * h / grid):int((gy + 1) * h / grid),
+                int(gx * w / grid):int((gx + 1) * w / grid),
+            ]
+            values.extend([float(patch.mean()), float(patch.std())])
+    return values
+
+
+def _farthest_point_sample(features, count: int) -> list[int]:
+    """Small deterministic farthest-point sampler for the coreset."""
+    import numpy as np
+
+    if count >= len(features):
+        return list(range(len(features)))
+    centroid = features.mean(axis=0)
+    first = int(np.argmax(np.linalg.norm(features - centroid, axis=1)))
+    selected = [first]
+    min_dist = np.linalg.norm(features - features[first], axis=1)
+    while len(selected) < count:
+        idx = int(np.argmax(min_dist))
+        selected.append(idx)
+        dist = np.linalg.norm(features - features[idx], axis=1)
+        min_dist = np.minimum(min_dist, dist)
+    return selected

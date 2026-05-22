@@ -81,7 +81,11 @@ class ModelVersionPage(QWidget):
         """Re-set table headers on language change."""
         self._table.setHorizontalHeaderLabels([tr("model.col_id"), tr("project.col_name"), tr("model.col_type"), tr("app.path"), tr("model.col_base"), tr("app.status"), tr("model.col_active"), tr("model.col_created")])
 
-    def showEvent(self, event): super().showEvent(event); self._refresh()
+    def showEvent(self, event): super().showEvent(event); self.refresh()
+
+    def refresh(self) -> None:
+        """Refresh model version history from storage."""
+        self._refresh()
 
     def _refresh(self):
         pid = self._ctx.current_project_id
