@@ -1,4 +1,5 @@
 """Defect trace page — query defect events and NG images."""
+
 from __future__ import annotations
 
 import os
@@ -7,18 +8,32 @@ from datetime import datetime, timedelta
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QHeaderView, QPushButton, QLabel, QComboBox, QSplitter,
-    QDateEdit, QProgressBar,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QPushButton,
+    QLabel,
+    QComboBox,
+    QSplitter,
+    QDateEdit,
+    QProgressBar,
 )
 
-from core.capture_session import list_capture_sessions, list_captured_images, get_classification_counts
+from core.capture_session import (
+    list_capture_sessions,
+    list_captured_images,
+    get_classification_counts,
+)
 from core.production_event import list_defect_events
 from core.model_version import list_model_versions
 from desktop_app.app_context import AppContext
 from desktop_app.display import CLASS_LABEL_OPTIONS, class_label
 from desktop_app.i18n import tr, bind, I18nManager
 from desktop_app.widgets.image_viewer import ImageViewer
+from desktop_app.theme_manager import ThemeManager
 
 
 class DefectTracePage(QWidget):
@@ -30,6 +45,7 @@ class DefectTracePage(QWidget):
         self._defect_events_data: list = []  # Full DefectEvent objects for row selection
         self._build_ui()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -106,8 +122,11 @@ class DefectTracePage(QWidget):
         self._event_filter.addWidget(self._ev_date_to)
         layout.addLayout(self._event_filter)
         self._event_filter_widgets = [
-            self._ev_camera_combo, self._ev_type_combo, self._ev_model_combo,
-            self._ev_date_from, self._ev_date_to,
+            self._ev_camera_combo,
+            self._ev_type_combo,
+            self._ev_model_combo,
+            self._ev_date_from,
+            self._ev_date_to,
         ]
         # Find all labels in event filter to hide/show
         for i in range(self._event_filter.count()):
@@ -128,7 +147,15 @@ class DefectTracePage(QWidget):
 
         # Image list table
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels([tr("trace.col_image"), tr("trace.col_camera"), tr("trace.col_label"), tr("trace.col_width"), tr("trace.col_height")])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("trace.col_image"),
+                tr("trace.col_camera"),
+                tr("trace.col_label"),
+                tr("trace.col_width"),
+                tr("trace.col_height"),
+            ]
+        )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.itemSelectionChanged.connect(self._on_row_selected)
@@ -143,7 +170,7 @@ class DefectTracePage(QWidget):
 
         # Stats + position histogram
         self._stats_label = QLabel("")
-        self._stats_label.setStyleSheet("color: #888; font-size: 11px;")
+        self._stats_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 11px;")
         layout.addWidget(self._stats_label)
 
         self._histogram = QProgressBar()
@@ -212,18 +239,28 @@ class DefectTracePage(QWidget):
     def _set_table_headers(self, src: str):
         if src == "captured_images":
             self._table.setColumnCount(5)
-            self._table.setHorizontalHeaderLabels([
-                tr("trace.col_image"), tr("trace.col_camera"),
-                tr("trace.col_label"), tr("trace.col_width"), tr("trace.col_height"),
-            ])
+            self._table.setHorizontalHeaderLabels(
+                [
+                    tr("trace.col_image"),
+                    tr("trace.col_camera"),
+                    tr("trace.col_label"),
+                    tr("trace.col_width"),
+                    tr("trace.col_height"),
+                ]
+            )
         else:
             self._table.setColumnCount(7)
-            self._table.setHorizontalHeaderLabels([
-                tr("production.col_time"), tr("trace.col_camera"),
-                tr("defect.defect_type"), tr("defect.model_version"),
-                tr("inference.col_conf"), tr("defect.position_meter"),
-                tr("trace.col_image"),
-            ])
+            self._table.setHorizontalHeaderLabels(
+                [
+                    tr("production.col_time"),
+                    tr("trace.col_camera"),
+                    tr("defect.defect_type"),
+                    tr("defect.model_version"),
+                    tr("inference.col_conf"),
+                    tr("defect.position_meter"),
+                    tr("trace.col_image"),
+                ]
+            )
 
     def _rebuild_label_combo(self) -> None:
         self._label_combo.clear()
@@ -250,7 +287,9 @@ class DefectTracePage(QWidget):
         for row, img in enumerate(images):
             self._table.setItem(row, 0, QTableWidgetItem(img.get("image_name", "")))
             self._table.setItem(row, 1, QTableWidgetItem(img.get("camera_id", "")))
-            self._table.setItem(row, 2, QTableWidgetItem(class_label(img.get("classification_label", ""))))
+            self._table.setItem(
+                row, 2, QTableWidgetItem(class_label(img.get("classification_label", "")))
+            )
             self._table.setItem(row, 3, QTableWidgetItem(str(img.get("width", ""))))
             self._table.setItem(row, 4, QTableWidgetItem(str(img.get("height", ""))))
 
@@ -298,7 +337,9 @@ class DefectTracePage(QWidget):
             self._table.setItem(row, 1, QTableWidgetItem(evt.camera_id))
             self._table.setItem(row, 2, QTableWidgetItem(evt.defect_type or "—"))
             self._table.setItem(row, 3, QTableWidgetItem(evt.model_version or "—"))
-            self._table.setItem(row, 4, QTableWidgetItem(f"{evt.max_confidence:.3f}" if evt.max_confidence else "—"))
+            self._table.setItem(
+                row, 4, QTableWidgetItem(f"{evt.max_confidence:.3f}" if evt.max_confidence else "—")
+            )
             pos_str = f"{evt.position_meter:.3f}" if evt.position_meter is not None else "—"
             self._table.setItem(row, 5, QTableWidgetItem(pos_str))
             img_name = os.path.basename(evt.ng_image_path) if evt.ng_image_path else "—"
@@ -336,8 +377,12 @@ class DefectTracePage(QWidget):
         # Show progress bar indicating where the densest position is
         self._histogram.setValue(int((peak_bin / (bins - 1)) * 100) if bins > 1 else 50)
         self._histogram.setToolTip(
-            tr("trace.histogram_tip", min_p=f"{min_p:.2f}", max_p=f"{max_p:.2f}",
-               count=len(positions))
+            tr(
+                "trace.histogram_tip",
+                min_p=f"{min_p:.2f}",
+                max_p=f"{max_p:.2f}",
+                count=len(positions),
+            )
         )
 
     def _on_row_selected(self):
@@ -363,6 +408,7 @@ class DefectTracePage(QWidget):
         if not sid:
             return ""
         from core.capture_session import session_output_root, get_capture_session
+
         sess = get_capture_session(sid)
         if not sess:
             return ""
@@ -373,3 +419,9 @@ class DefectTracePage(QWidget):
             if os.path.isfile(candidate):
                 return candidate
         return ""
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._stats_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")
+

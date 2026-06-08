@@ -12,21 +12,6 @@ import tempfile
 import numpy as np
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
-
-
 # ── Step 1: Create customer → project → spec ──────────────────────────
 
 def test_v6_pipeline_create_project_spec():
@@ -42,7 +27,6 @@ def test_v6_pipeline_create_project_spec():
     assert spec.spec_id.startswith("SPEC_")
     assert spec.camera_count == 3
     assert get_product_spec(spec.spec_id).camera_count == 3
-
 
 # ── Step 2: Create camera configs ─────────────────────────────────────
 
@@ -72,7 +56,6 @@ def test_v6_pipeline_camera_configs():
     assert len(cfgs) == 3
     indices = sorted(c.camera_index for c in cfgs)
     assert indices == [1, 2, 3]
-
 
 # ── Step 3: Capture session + add images + classify ───────────────────
 
@@ -129,7 +112,6 @@ def test_v6_pipeline_capture_and_classify():
     assert counts.get("NG_A") == 1
     assert counts.get("NG_B") == 1
 
-
 # ── Step 4: Dataset version ───────────────────────────────────────────
 
 def test_v6_pipeline_dataset_version():
@@ -155,7 +137,6 @@ def test_v6_pipeline_dataset_version():
 
     versions = list_dataset_versions(proj.project_id)
     assert len(versions) == 1
-
 
 # ── Step 5: Model version + activate / rollback ───────────────────────
 
@@ -203,10 +184,9 @@ def test_v6_pipeline_model_lifecycle():
     activate_model(m1.model_id)
     assert get_active_model(proj.project_id).model_id == m1.model_id
 
-
 # ── Step 6: Production NG events with V6 fields ───────────────────────
 
-def test_v6_pipeline_production_ng_events():
+def test_v6_pipeline_production_ng_events(tmp_path):
     from core.customer import create_customer
     from core.project import create_project
     from core.product_spec import create_product_spec
@@ -234,6 +214,7 @@ def test_v6_pipeline_production_ng_events():
             model_version="MODEL_v6_active",
             defect_type=dtype,
             position_meter=pos,
+            output_root=str(tmp_path / "outputs"),
         )
         assert evt.event_id.startswith("EVT_")
         assert evt.defect_type == dtype
@@ -253,7 +234,6 @@ def test_v6_pipeline_production_ng_events():
 
     # Verify model_version on all events
     assert all(e.model_version == "MODEL_v6_active" for e in events)
-
 
 # ── Step 7: Sampling controller integration ───────────────────────────
 
@@ -294,7 +274,6 @@ def test_v6_pipeline_sampling_controller():
     ctrl.trigger_manual()
     assert ctrl.should_capture() is True
 
-
 # ── Step 8: Config backup roundtrip ───────────────────────────────────
 
 def test_v6_pipeline_backup_roundtrip():
@@ -323,7 +302,6 @@ def test_v6_pipeline_backup_roundtrip():
         import shutil
         shutil.rmtree(backup_dir, ignore_errors=True)
 
-
 # ── Step 9: Dataset quality check integration ─────────────────────────
 
 def test_v6_pipeline_dataset_quality():
@@ -340,18 +318,17 @@ def test_v6_pipeline_dataset_quality():
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
 
-
 # ── Step 10: Encoder reader simulated mode ────────────────────────────
 
 def test_v6_pipeline_encoder_simulated():
-    import time
+    from tests import wait_for_condition
     from runtime.encoder_reader import SimulatedEncoderReader
 
     encoder = SimulatedEncoderReader()
     encoder.connect({"line_speed_mpm": 60.0, "pulses_per_meter": 1000.0})
 
     p1 = encoder.read_position_meter()
-    time.sleep(0.2)
+    wait_for_condition(lambda: encoder.read_position_meter() > p1, timeout=2.0)
     p2 = encoder.read_position_meter()
 
     # Position should increase over time (1 m/s at 60 mpm)

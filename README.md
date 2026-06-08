@@ -8,10 +8,12 @@ CX-vision 是面向铜管（及其他金属材料）表面缺陷检测的工业�
 
 **V6 定位**：现场试运行版 / 工程化交付版。支持项目管理、多相机实时采集、YOLO 训练推理、缺陷追溯、日志中心、配置备份恢复。
 
+> **双 UI 架构**：主界面为 PySide6 桌面应用（`python main.py`），Streamlit 辅助模块在 `ui/` 目录下用于快速可视化（`streamlit run ui/<module>.py`）。本 README 面向桌面版；评测工具使用说明见 [USER_GUIDE.md](USER_GUIDE.md)。
+
 ## 系统架构
 
 ```
-copper-defect-eval-tool/
+copper-defect-eval-tool/              # source code repository
 ├── main.py                 # 桌面应用入口
 ├── core/                   # 数据模型 + CRUD（纯 Python，无 Qt 依赖）
 │   ├── customer.py / project.py / product_spec.py
@@ -19,28 +21,31 @@ copper-defect-eval-tool/
 │   ├── camera_config.py / dataset_version.py
 │   ├── production_event.py / sampling_controller.py
 │   ├── log_manager.py / config_backup.py
+│   ├── workspace_paths.py  # 工作区路径解析（三根策略）
+│   ├── project_workflow.py # 项目工作流状态推导
+│   ├── runtime_mode.py     # 运行时模式枚举
 │   └── storage.py          # SQLite 数据库层 + 迁移
 ├── runtime/                # 采集 / 推理 / 编码器运行时
-│   ├── acquisition_pipeline.py
-│   ├── inference_pipeline.py
-│   ├── frame_buffer.py
-│   ├── encoder_reader.py
-│   └── health_monitor.py
-├── camera_adapters/        # 相机适配器（FolderWatcher / Hikvision / Basler）
+├── camera_adapters/        # 相机适配器
 ├── trainers/               # 训练器（YOLO / PatchCore / Hybrid）
 ├── model_runners/          # 模型推理器
+├── benchmark/              # 压测框架 + 硬件建议
 ├── desktop_app/            # PySide6 桌面 UI
 │   ├── main_window.py      # 主窗口 + 导航
-│   ├── pages/              # 10 个功能页面
+│   ├── pages/              # 功能页面
 │   ├── dialogs/            # 对话框
 │   ├── workers/            # QThread 后台任务
 │   ├── widgets/            # 可复用组件
 │   └── i18n.py             # 中英文国际化
 ├── config/                 # 运行时配置
-├── data/                   # SQLite 数据库
-├── tests/                  # pytest 测试（核心层约 200 个）
+├── tests/                  # pytest 测试
+├── docs/                   # 文档
 └── packaging/              # 打包脚本
 ```
+
+**工作区分离（Phase F）：** 业务数据、模型、数据集、报告和压测输出写入外部工作区
+`copper-defect-eval-tool_workspace/`，而非仓库目录。SDK 和运行时依赖放在
+`copper-defect-eval-tool_external/`。详见 [迁移指南](docs/phase_f_migration_guide.md)。
 
 ## V6 功能列表
 

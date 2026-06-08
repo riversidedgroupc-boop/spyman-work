@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tests import make_detection_box
+
 from core.deployment_metrics import (
     compute_detection_counts,
     compute_miss_rate,
@@ -11,13 +13,6 @@ from core.deployment_metrics import (
     compute_average_inference_time,
     compute_deployment_summary,
 )
-from core.schema import DetectionBox
-
-
-def _box(img="img_001.jpg", cid=0, cname="defect", conf=0.9, bbox=None):
-    if bbox is None:
-        bbox = [0, 0, 100, 100]
-    return DetectionBox(img, cid, cname, conf, bbox)
 
 
 class TestComputeDetectionCounts:
@@ -31,16 +26,16 @@ class TestComputeDetectionCounts:
         assert counts["false_negatives"] == 0
 
     def test_perfect_match(self):
-        gt = {"img.jpg": [_box()]}
-        pred = {"img.jpg": [_box(bbox=[5, 5, 95, 95])]}
+        gt = {"img.jpg": [make_detection_box()]}
+        pred = {"img.jpg": [make_detection_box(bbox=[5, 5, 95, 95])]}
         counts = compute_detection_counts(gt, pred)
         assert counts["true_positives"] == 1
         assert counts["false_positives"] == 0
         assert counts["false_negatives"] == 0
 
     def test_no_match(self):
-        gt = {"img.jpg": [_box(bbox=[0, 0, 10, 10])]}
-        pred = {"img.jpg": [_box(bbox=[90, 90, 100, 100])]}
+        gt = {"img.jpg": [make_detection_box(bbox=[0, 0, 10, 10])]}
+        pred = {"img.jpg": [make_detection_box(bbox=[90, 90, 100, 100])]}
         counts = compute_detection_counts(gt, pred)
         assert counts["true_positives"] == 0
         assert counts["false_positives"] == 1
@@ -48,11 +43,11 @@ class TestComputeDetectionCounts:
 
     def test_multi_image(self):
         gt = {
-            "img1.jpg": [_box(img="img1.jpg"), _box(img="img1.jpg", bbox=[50, 50, 150, 150])],
-            "img2.jpg": [_box(img="img2.jpg")],
+            "img1.jpg": [make_detection_box(img="img1.jpg"), make_detection_box(img="img1.jpg", bbox=[50, 50, 150, 150])],
+            "img2.jpg": [make_detection_box(img="img2.jpg")],
         }
         pred = {
-            "img1.jpg": [_box(img="img1.jpg", bbox=[10, 10, 90, 90])],
+            "img1.jpg": [make_detection_box(img="img1.jpg", bbox=[10, 10, 90, 90])],
             "img2.jpg": [],
         }
         counts = compute_detection_counts(gt, pred)
@@ -63,29 +58,29 @@ class TestComputeDetectionCounts:
 
 class TestComputeMissRate:
     def test_no_misses(self):
-        gt = {"img.jpg": [_box()]}
-        pred = {"img.jpg": [_box(bbox=[5, 5, 95, 95])]}
+        gt = {"img.jpg": [make_detection_box()]}
+        pred = {"img.jpg": [make_detection_box(bbox=[5, 5, 95, 95])]}
         assert compute_miss_rate(gt, pred) == 0.0
 
     def test_all_missed(self):
-        gt = {"img.jpg": [_box()]}
+        gt = {"img.jpg": [make_detection_box()]}
         pred = {"img.jpg": []}
         assert compute_miss_rate(gt, pred) == 1.0
 
     def test_no_gt(self):
-        mr = compute_miss_rate({}, {"img.jpg": [_box()]})
+        mr = compute_miss_rate({}, {"img.jpg": [make_detection_box()]})
         assert mr == 0.0
 
 
 class TestComputeFalseAlarmRate:
     def test_no_false_alarms(self):
-        gt = {"img.jpg": [_box()]}
-        pred = {"img.jpg": [_box(bbox=[5, 5, 95, 95])]}
+        gt = {"img.jpg": [make_detection_box()]}
+        pred = {"img.jpg": [make_detection_box(bbox=[5, 5, 95, 95])]}
         assert compute_false_alarm_rate(gt, pred) == 0.0
 
     def test_all_false_alarms(self):
         gt = {"img.jpg": []}
-        pred = {"img.jpg": [_box()]}
+        pred = {"img.jpg": [make_detection_box()]}
         assert compute_false_alarm_rate(gt, pred) == 1.0
 
 
@@ -96,7 +91,7 @@ class TestComputeFalseAlarmsPerMeter:
 
     def test_with_meter_data(self):
         gt = {"img.jpg": []}
-        pred = {"img.jpg": [_box()]}
+        pred = {"img.jpg": [make_detection_box()]}
         result = compute_false_alarms_per_meter(
             gt, pred, image_meter_length_map={"img.jpg": 10.0}
         )
@@ -109,12 +104,12 @@ class TestComputeFalseAlarmsPerMeter:
 
 class TestComputeReviewLoad:
     def test_no_review_needed(self):
-        rl = compute_review_load({"img.jpg": [_box()]}, {"img.jpg": []})
+        rl = compute_review_load({"img.jpg": [make_detection_box()]}, {"img.jpg": []})
         assert rl["review_load_images"] == 0
         assert rl["review_load_ratio"] == 0.0
 
     def test_all_review_needed(self):
-        rl = compute_review_load({"img.jpg": []}, {"img.jpg": [_box()]})
+        rl = compute_review_load({"img.jpg": []}, {"img.jpg": [make_detection_box()]})
         assert rl["review_load_images"] == 1
         assert rl["review_load_ratio"] == 1.0
 
@@ -133,8 +128,8 @@ class TestComputeAverageInferenceTime:
 
 class TestComputeDeploymentSummary:
     def test_full_summary(self):
-        gt = {"img.jpg": [_box()]}
-        pred = {"img.jpg": [_box(bbox=[5, 5, 95, 95])]}
+        gt = {"img.jpg": [make_detection_box()]}
+        pred = {"img.jpg": [make_detection_box(bbox=[5, 5, 95, 95])]}
         summary = compute_deployment_summary(
             gt, pred,
             image_meter_length_map={"img.jpg": 2.0},
@@ -147,16 +142,16 @@ class TestComputeDeploymentSummary:
         assert summary["max_inference_ms"] == 25.0
 
     def test_wrong_class_overlap_is_not_true_positive_by_default(self):
-        gt = {"img.jpg": [_box(cid=3, cname="NG_scratch")]}
-        pred = {"img.jpg": [_box(cid=5, cname="NG_dent")]}
+        gt = {"img.jpg": [make_detection_box(cid=3, cname="NG_scratch")]}
+        pred = {"img.jpg": [make_detection_box(cid=5, cname="NG_dent")]}
         counts = compute_detection_counts(gt, pred)
         assert counts["true_positives"] == 0
         assert counts["false_positives"] == 1
         assert counts["false_negatives"] == 1
 
     def test_wrong_class_overlap_can_be_class_agnostic_when_requested(self):
-        gt = {"img.jpg": [_box(cid=3, cname="NG_scratch")]}
-        pred = {"img.jpg": [_box(cid=5, cname="NG_dent")]}
+        gt = {"img.jpg": [make_detection_box(cid=3, cname="NG_scratch")]}
+        pred = {"img.jpg": [make_detection_box(cid=5, cname="NG_dent")]}
         counts = compute_detection_counts(gt, pred, class_aware=False)
         assert counts["true_positives"] == 1
         assert counts["false_positives"] == 0

@@ -1,23 +1,7 @@
 """Tests for model activation / rollback guards (Phase 4)."""
 import os
-import tempfile
 
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
-
 
 @pytest.fixture
 def ctx():
@@ -26,7 +10,6 @@ def ctx():
     c = create_customer("Activation Co", "AC")
     p = create_project(c.customer_id, "Activation Proj")
     return {"project_id": p.project_id}
-
 
 def test_activate_model_sets_is_active(ctx):
     from core.model_version import (
@@ -43,7 +26,6 @@ def test_activate_model_sets_is_active(ctx):
 
     fetched = get_model_version(m.model_id)
     assert fetched.is_active is True
-
 
 def test_activate_model_deactivates_previous(ctx):
     from core.model_version import (
@@ -62,11 +44,9 @@ def test_activate_model_deactivates_previous(ctx):
     assert get_model_version(m1.model_id).status == "archived"
     assert get_model_version(m2.model_id).is_active is True
 
-
 def test_activate_nonexistent_returns_none():
     from core.model_version import activate_model
     assert activate_model("NONEXISTENT_ID") is None
-
 
 def test_rollback_model_clears_active(ctx):
     from core.model_version import (
@@ -86,17 +66,14 @@ def test_rollback_model_clears_active(ctx):
     assert fetched.is_active is False
     assert fetched.status == "rolled_back"
 
-
 def test_rollback_nonexistent_returns_none():
     from core.model_version import rollback_model
     assert rollback_model("NONEXISTENT_ID") is None
-
 
 def test_get_active_model_returns_none_when_no_active(ctx):
     from core.model_version import create_model_version, get_active_model
     create_model_version(ctx["project_id"], "Inactive", model_path="/m/i.pt")
     assert get_active_model(ctx["project_id"]) is None
-
 
 def test_get_active_model_returns_active(ctx):
     from core.model_version import (
@@ -108,7 +85,6 @@ def test_get_active_model_returns_active(ctx):
     assert active is not None
     assert active.model_id == m.model_id
     assert active.is_active is True
-
 
 def test_activate_then_rollback_then_reactivate(ctx):
     from core.model_version import (
@@ -130,7 +106,6 @@ def test_activate_then_rollback_then_reactivate(ctx):
     assert get_active_model(ctx["project_id"]).model_id == m.model_id
     assert get_model_version(m.model_id).status == "active"
 
-
 def test_is_active_in_list(ctx):
     from core.model_version import (
         create_model_version, activate_model, list_model_versions,
@@ -143,7 +118,6 @@ def test_is_active_in_list(ctx):
     by_id = {m.model_id: m for m in models}
     assert by_id[m1.model_id].is_active is False
     assert by_id[m2.model_id].is_active is True
-
 
 def test_active_model_is_unique_per_spec_not_whole_project(ctx):
     from core.product_spec import create_product_spec
@@ -170,7 +144,6 @@ def test_active_model_is_unique_per_spec_not_whole_project(ctx):
     assert get_model_version(model_b.model_id).is_active is True
     assert get_active_model(ctx["project_id"], spec_id=spec_a.spec_id).model_id == model_a.model_id
     assert get_active_model(ctx["project_id"], spec_id=spec_b.spec_id).model_id == model_b.model_id
-
 
 def test_model_activation_and_rollback_write_audit_log(ctx, tmp_path):
     from core.log_manager import LogManager

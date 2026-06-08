@@ -1,8 +1,15 @@
 """Dialog for creating or editing a customer."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox, QLabel,
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QDialogButtonBox,
+    QMessageBox,
+    QLabel,
 )
 
 from desktop_app.i18n import tr, bind
@@ -12,7 +19,11 @@ class CreateCustomerDialog(QDialog):
     def __init__(self, parent=None, edit_data: dict | None = None) -> None:
         super().__init__(parent)
         self._edit_data = edit_data
-        bind(self, "customer.title_edit" if edit_data else "customer.title_new", setter="setWindowTitle")
+        bind(
+            self,
+            "customer.title_edit" if edit_data else "customer.title_new",
+            setter="setWindowTitle",
+        )
         self.setMinimumWidth(420)
         self._build_ui()
         if edit_data:

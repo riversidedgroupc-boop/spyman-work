@@ -27,6 +27,8 @@ except ImportError:
     TileGenerator = None  # type: ignore[assignment]
     _TILE_SUPPORT = False
 
+DEFAULT_TILE_SIZE = 320
+
 
 @dataclass
 class CameraInferenceStats:
@@ -62,7 +64,7 @@ class InferencePipeline:
         self._on_ng_callback: Callable | None = None
 
         if _TILE_SUPPORT:
-            self._tile_gen = TileGenerator(tile_size=320)
+            self._tile_gen = TileGenerator(tile_size=DEFAULT_TILE_SIZE)
 
     def set_runner(self, runner: Any, camera_id: str | None = None) -> None:
         """Set model runner for a specific camera (or default if camera_id is None).

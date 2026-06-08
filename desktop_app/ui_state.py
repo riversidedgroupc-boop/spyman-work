@@ -1,9 +1,13 @@
 """Persist lightweight desktop UI state across launches."""
+
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _state_path() -> str:
@@ -28,5 +32,8 @@ def load_ui_state() -> dict[str, Any]:
 def save_ui_state(**updates) -> None:
     state = load_ui_state()
     state.update(updates)
-    with open(_state_path(), "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+    try:
+        with open(_state_path(), "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except OSError:
+        logger.warning("Failed to persist UI state", exc_info=True)

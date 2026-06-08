@@ -1,7 +1,6 @@
 """CaptureSession data model and operations."""
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -230,10 +229,9 @@ def get_session_task_type(session_id: str) -> str:
 
 
 def session_output_root(project_id: str) -> str:
-    from core.project import PROJECT_DATA_ROOT, get_project
+    from core.project import get_project
+    from core.workspace_paths import get_project_subdir, ensure_dir
+
     p = get_project(project_id)
     customer_id = p.customer_id if p else "unknown"
-    return os.path.join(
-        PROJECT_DATA_ROOT, f"customer_{customer_id}",
-        f"project_{project_id}", "sample_sessions"
-    )
+    return ensure_dir(get_project_subdir(customer_id, project_id, "sample_sessions"))

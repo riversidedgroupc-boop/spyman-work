@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tests import make_detection_box
+
 from core.defect_rules import (
     DefectRuleConfig,
     estimate_defect_size_mm,
@@ -14,30 +16,23 @@ from core.defect_rules import (
     LEVEL_UNKNOWN,
     LEVEL_LOW_CONF,
 )
-from core.schema import DetectionBox
-
-
-def _box(cname="scratch", conf=0.9, bbox=None):
-    if bbox is None:
-        bbox = [0, 0, 100, 200]
-    return DetectionBox("img.jpg", 0, cname, conf, bbox)
 
 
 class TestEstimateDefectSizeMm:
     def test_basic(self):
-        box = _box(bbox=[0, 0, 100, 200])
+        box = make_detection_box(bbox=[0, 0, 100, 200])
         size = estimate_defect_size_mm(box, pixel_size_mm=0.01)
         expected = ((100**2 + 200**2) ** 0.5) * 0.01
         assert abs(size - expected) < 0.001
 
     def test_none_pixel_size(self):
-        assert estimate_defect_size_mm(_box(), None) is None
+        assert estimate_defect_size_mm(make_detection_box(), None) is None
 
     def test_zero_pixel_size(self):
-        assert estimate_defect_size_mm(_box(), 0.0) is None
+        assert estimate_defect_size_mm(make_detection_box(), 0.0) is None
 
     def test_square(self):
-        box = _box(bbox=[0, 0, 50, 50])
+        box = make_detection_box(bbox=[0, 0, 50, 50])
         size = estimate_defect_size_mm(box, pixel_size_mm=0.02)
         expected = (50**2 + 50**2) ** 0.5 * 0.02
         assert size > 1.4
@@ -46,17 +41,17 @@ class TestEstimateDefectSizeMm:
 class TestClassifyDefectLevel:
     def test_unknown_class(self):
         config = DefectRuleConfig(unknown_class_names=["anomaly"])
-        box = _box(cname="anomaly", conf=0.9)
+        box = make_detection_box(cname="anomaly", conf=0.9)
         assert classify_defect_level(box, config) == LEVEL_UNKNOWN
 
     def test_low_confidence(self):
         config = DefectRuleConfig(min_alarm_confidence=0.5)
-        box = _box(conf=0.3)
+        box = make_detection_box(conf=0.3)
         assert classify_defect_level(box, config) == LEVEL_LOW_CONF
 
     def test_severe_class(self):
         config = DefectRuleConfig(severe_class_names=["scratch_deep"])
-        box = _box(cname="scratch_deep", conf=0.9)
+        box = make_detection_box(cname="scratch_deep", conf=0.9)
         assert classify_defect_level(box, config) == LEVEL_A
 
     def test_acceptable_small(self):
@@ -64,7 +59,7 @@ class TestClassifyDefectLevel:
             acceptable_class_names=["scratch_light"],
             min_alarm_size_mm=0.07,
         )
-        box = _box(cname="scratch_light", conf=0.9, bbox=[0, 0, 3, 3])
+        box = make_detection_box(cname="scratch_light", conf=0.9, bbox=[0, 0, 3, 3])
         level = classify_defect_level(box, config, pixel_size_mm=0.01)
         assert level == LEVEL_C  # size < min_alarm_size_mm
 
@@ -73,13 +68,13 @@ class TestClassifyDefectLevel:
             acceptable_class_names=["scratch_light"],
             severe_size_mm=0.15,
         )
-        box = _box(cname="scratch_light", conf=0.9, bbox=[0, 0, 200, 300])
+        box = make_detection_box(cname="scratch_light", conf=0.9, bbox=[0, 0, 200, 300])
         level = classify_defect_level(box, config, pixel_size_mm=0.01)
         assert level == LEVEL_A  # size >= severe_size_mm
 
     def test_default_classify(self):
         config = DefectRuleConfig()
-        box = _box(cname="dent", conf=0.8)
+        box = make_detection_box(cname="dent", conf=0.8)
         level = classify_defect_level(box, config)
         assert level == LEVEL_B
 
@@ -92,9 +87,9 @@ class TestApplyDefectRules:
         )
         preds = {
             "img1.jpg": [
-                _box(cname="scratch_deep", conf=0.9),
-                _box(cname="scratch_light", conf=0.8, bbox=[0, 0, 3, 3]),
-                _box(cname="anomaly", conf=0.7),
+                make_detection_box(cname="scratch_deep", conf=0.9),
+                make_detection_box(cname="scratch_light", conf=0.8, bbox=[0, 0, 3, 3]),
+                make_detection_box(cname="anomaly", conf=0.7),
             ],
         }
         results = apply_defect_rules(preds, config, pixel_size_mm=0.01)
@@ -115,8 +110,8 @@ class TestSummarizeDefectLevels:
         config = DefectRuleConfig(severe_class_names=["scratch_deep"])
         preds = {
             "img.jpg": [
-                _box(cname="scratch_deep", conf=0.9),
-                _box(conf=0.1),  # low confidence
+                make_detection_box(cname="scratch_deep", conf=0.9),
+                make_detection_box(conf=0.1),  # low confidence
             ],
         }
         results = apply_defect_rules(preds, config)

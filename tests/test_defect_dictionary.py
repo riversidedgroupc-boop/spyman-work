@@ -2,24 +2,8 @@
 from __future__ import annotations
 
 import os
-import shutil
-import tempfile
 
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import importlib
-    import core.storage
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    shutil.rmtree(tmp, ignore_errors=True)
-
 
 @pytest.fixture
 def ctx():
@@ -35,7 +19,6 @@ def ctx():
         "spec_id": s.spec_id,
     }
 
-
 from core.defect_dictionary import (  # noqa: E402
     DefectType,
     create_defect_type,
@@ -46,7 +29,6 @@ from core.defect_dictionary import (  # noqa: E402
     delete_defect_type,
 )
 
-
 # ── Dataclass ──────────────────────────────────────────────────────
 
 def test_defect_type_requires_project_id():
@@ -56,7 +38,6 @@ def test_defect_type_requires_project_id():
             project_id="  ",
         )
 
-
 def test_defect_type_rejects_invalid_severity(ctx):
     with pytest.raises(ValueError, match="severity"):
         DefectType(
@@ -65,7 +46,6 @@ def test_defect_type_rejects_invalid_severity(ctx):
             severity="unknown_level",
         )
 
-
 def test_defect_type_defaults(ctx):
     dt = DefectType(defect_type_id="DEF_001", project_id=ctx["project_id"])
     assert dt.spec_id == ""
@@ -73,7 +53,6 @@ def test_defect_type_defaults(ctx):
     assert dt.severity == "medium"
     assert dt.is_ng is True
     assert dt.sample_image_paths == "[]"
-
 
 def test_defect_type_to_dict_round_trip(ctx):
     dt = DefectType(
@@ -94,7 +73,6 @@ def test_defect_type_to_dict_round_trip(ctx):
     assert dt2.severity == "high"
     assert dt2.is_ng is True
 
-
 def test_is_ng_false_round_trip(ctx):
     dt = DefectType(
         defect_type_id="DEF_002",
@@ -106,7 +84,6 @@ def test_is_ng_false_round_trip(ctx):
     assert d["is_ng"] == 0
     dt2 = DefectType.from_dict(d)
     assert dt2.is_ng is False
-
 
 # ── CRUD ───────────────────────────────────────────────────────────
 
@@ -124,7 +101,6 @@ def test_create_and_get(ctx):
     assert fetched.code == "PIT"
     assert fetched.display_name_zh == "点伤"
 
-
 def test_list_defect_types(ctx):
     from core.project import create_project
     p2 = create_project(ctx["customer_id"], "DD Proj B")
@@ -139,7 +115,6 @@ def test_list_defect_types(ctx):
     assert len(proj_a) >= 2
     assert all(dt.project_id == ctx["project_id"] for dt in proj_a)
 
-
 def test_get_active_defect_types(ctx):
     create_defect_type(project_id=ctx["project_id"], code="NG1", is_ng=True)
     create_defect_type(project_id=ctx["project_id"], code="NG2", is_ng=True)
@@ -148,7 +123,6 @@ def test_get_active_defect_types(ctx):
     active = get_active_defect_types(project_id=ctx["project_id"])
     assert len(active) >= 2
     assert all(dt.is_ng for dt in active)
-
 
 def test_update_defect_type(ctx):
     dt = create_defect_type(project_id=ctx["project_id"], code="OLD", display_name_zh="旧名称")
@@ -160,28 +134,23 @@ def test_update_defect_type(ctx):
     fetched = get_defect_type(dt.defect_type_id)
     assert fetched.display_name_zh == "新名称"
 
-
 def test_update_nonexistent():
     result = update_defect_type("DEF_NOPE", display_name_zh="xxx")
     assert result is None
-
 
 def test_delete(ctx):
     dt = create_defect_type(project_id=ctx["project_id"], code="DEL", display_name_zh="待删除")
     delete_defect_type(dt.defect_type_id)
     assert get_defect_type(dt.defect_type_id) is None
 
-
 def test_delete_nonexistent_does_not_crash():
     delete_defect_type("DEF_NOPE")
-
 
 def test_update_rejects_invalid_severity(ctx):
     """P1.2: update must re-validate and reject illegal severity."""
     dt = create_defect_type(project_id=ctx["project_id"], code="TEST", display_name_zh="测试")
     with pytest.raises(ValueError, match="severity"):
         update_defect_type(dt.defect_type_id, severity="invalid_level")
-
 
 # ── All valid severities ───────────────────────────────────────────
 

@@ -8,6 +8,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import QApplication
 
@@ -114,6 +115,95 @@ def _devices() -> list[DeviceInfo]:
         DeviceInfo(model="MV-A", serial_number="SN-A", ip_address="192.168.1.10", mac_address="AA"),
         DeviceInfo(model="MV-B", serial_number="SN-B", ip_address="192.168.1.11", mac_address="BB"),
     ]
+
+
+def _adapter_rows(page) -> list[list[str]]:
+    table = page._adapter_table
+    return [
+        [
+            table.item(row, col).text() if table.item(row, col) is not None else ""
+            for col in range(table.columnCount())
+        ]
+        for row in range(table.rowCount())
+    ]
+
+
+class FakeLineScanCamera(FakeCamera):
+    devices: list[DeviceInfo] = []
+
+    @staticmethod
+    def enumerate_devices() -> list[DeviceInfo]:
+        return list(FakeLineScanCamera.devices)
+
+
+def test_adapter_table_uses_real_hikrobot_line_scan_path(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import desktop_app.pages.camera_management_page as cm
+
+    FakeLineScanCamera.devices = _devices()
+    monkeypatch.setattr(cm.sdk_loader, "load_sdk", lambda: True)
+    monkeypatch.setattr(cm, "HikrobotLineScanCamera", FakeLineScanCamera)
+
+    widget = cm.CameraManagementPage()
+    try:
+        rows = _adapter_rows(widget)
+
+        assert any(row[1] == "hikrobot_line_scan" and "SN-A" in row[3] for row in rows)
+        assert all("HikvisionMVSAdapter" not in row and "hikvision_mvs" not in row for row in rows)
+    finally:
+        widget.close()
+
+
+def test_adapter_table_height_fits_registered_rows(page) -> None:
+    table = page._adapter_table
+    expected_height = (
+        table.horizontalHeader().height()
+        + sum(table.rowHeight(row) for row in range(table.rowCount()))
+        + table.frameWidth() * 2
+    )
+
+    assert table.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert table.minimumHeight() >= expected_height
+
+
+def test_scan_refreshes_hikrobot_adapter_devices(
+    qapp: QApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import desktop_app.pages.camera_management_page as cm
+
+    FakeLineScanCamera.devices = []
+    monkeypatch.setattr(cm.sdk_loader, "load_sdk", lambda: True)
+    monkeypatch.setattr(cm, "HikrobotLineScanCamera", FakeLineScanCamera)
+
+    widget = cm.CameraManagementPage()
+    try:
+        assert not any("SN-A" in row[3] for row in _adapter_rows(widget))
+
+        FakeLineScanCamera.devices = _devices()
+        widget._on_scan()
+
+        assert any(row[1] == "hikrobot_line_scan" and "SN-A" in row[3] for row in _adapter_rows(widget))
+    finally:
+        widget.close()
+
+
+def test_discovery_controls_are_grouped_into_clear_rows(page) -> None:
+    assert page._discovery_grid.rowCount() >= 2
+    assert page._slot_status_grid.rowCount() == 2
+    assert page._slot_status_grid.columnCount() == 3
+
+
+def test_parameter_controls_use_horizontal_rows(page) -> None:
+    """Parameter controls are laid out in rows, not a grid (post-refactor)."""
+    # _param_group should exist (former _param_grid was replaced with row-based layouts)
+    assert page._param_group is not None
+    assert hasattr(page, "_exposure_spin")
+    assert hasattr(page, "_gain_spin")
+    assert hasattr(page, "_line_rate_spin")
+    assert hasattr(page, "_width_spin")
+    assert hasattr(page, "_reverse_x_cb")
+    assert hasattr(page, "_apply_btn")
 
 
 def test_bind_connect_uses_selected_discovered_device(

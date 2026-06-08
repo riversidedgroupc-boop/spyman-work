@@ -1,4 +1,5 @@
 """Hybrid retest worker — runs fusion on a background QThread."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal

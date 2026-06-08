@@ -1,29 +1,20 @@
 """Tests for DatasetVersion auto-creation from dataset builders."""
 import json
 import os
-import tempfile
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
+@pytest.fixture
+def ctx():
+    """Create prerequisite customer -> project -> spec."""
     from core.customer import create_customer
     from core.project import create_project
     from core.product_spec import create_product_spec
     c = create_customer("DSIntCorp", "DI")
     p = create_project(c.customer_id, "DSIntProject")
     s = create_product_spec(p.project_id, "DSIntSpec", "铝", "板")
-    yield {"customer": c, "project": p, "spec": s}
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
+    return {"customer": c, "project": p, "spec": s}
 
 
 def _make_session_with_images(project_id, spec_id, tmp_path, n_ok=5, n_ng=2):
@@ -77,26 +68,26 @@ def _make_session_with_images(project_id, spec_id, tmp_path, n_ok=5, n_ng=2):
     return sess
 
 
-def test_yolo_build_creates_dataset_version(setup_db, tmp_path):
+def test_yolo_build_creates_dataset_version(ctx, tmp_path):
     """build_yolo_dataset_from_session creates a DatasetVersion record."""
     from core.dataset_builder import build_yolo_dataset_from_session
     from core.dataset_version import list_dataset_versions
 
     sess = _make_session_with_images(
-        setup_db["project"].project_id,
-        setup_db["spec"].spec_id,
+        ctx["project"].project_id,
+        ctx["spec"].spec_id,
         str(tmp_path),
     )
 
     dataset_dir = tmp_path / "yolo_ds"
     result = build_yolo_dataset_from_session(
         sess.session_id, str(dataset_dir),
-        project_id=setup_db["project"].project_id,
-        spec_id=setup_db["spec"].spec_id,
+        project_id=ctx["project"].project_id,
+        spec_id=ctx["spec"].spec_id,
         version_name="v1_test",
     )
 
-    versions = list_dataset_versions(project_id=setup_db["project"].project_id)
+    versions = list_dataset_versions(project_id=ctx["project"].project_id)
     assert len(versions) == 1
 
     dv = versions[0]
@@ -117,14 +108,14 @@ def test_yolo_build_creates_dataset_version(setup_db, tmp_path):
     assert result.quality_score == dv.quality_score
 
 
-def test_yolo_build_without_project_id_no_version(setup_db, tmp_path):
+def test_yolo_build_without_project_id_no_version(ctx, tmp_path):
     """Without project_id, no DatasetVersion is created."""
     from core.dataset_builder import build_yolo_dataset_from_session
     from core.dataset_version import list_dataset_versions
 
     sess = _make_session_with_images(
-        setup_db["project"].project_id,
-        setup_db["spec"].spec_id,
+        ctx["project"].project_id,
+        ctx["spec"].spec_id,
         str(tmp_path),
     )
 
@@ -132,19 +123,19 @@ def test_yolo_build_without_project_id_no_version(setup_db, tmp_path):
         sess.session_id, str(tmp_path / "yolo_no_version"),
     )
 
-    versions = list_dataset_versions(project_id=setup_db["project"].project_id)
+    versions = list_dataset_versions(project_id=ctx["project"].project_id)
     assert len(versions) == 0
     assert result.image_count == 7
 
 
-def test_yolo_build_blocks_review_labels(setup_db, tmp_path):
+def test_yolo_build_blocks_review_labels(ctx, tmp_path):
     """UNKNOWN/UNCERTAIN images must be reviewed before YOLO dataset generation."""
     from core.dataset_builder import build_yolo_dataset_from_session
     from core.storage import insert
 
     sess = _make_session_with_images(
-        setup_db["project"].project_id,
-        setup_db["spec"].spec_id,
+        ctx["project"].project_id,
+        ctx["spec"].spec_id,
         str(tmp_path),
     )
     img_path = os.path.join(tmp_path, sess.session_id, "raw", "unknown.jpg")
@@ -153,7 +144,7 @@ def test_yolo_build_blocks_review_labels(setup_db, tmp_path):
     insert("captured_images", {
         "image_id": "IMG_UNKNOWN_1",
         "session_id": sess.session_id,
-        "project_id": setup_db["project"].project_id,
+        "project_id": ctx["project"].project_id,
         "image_name": "unknown.jpg",
         "image_path": img_path,
         "classification_label": "UNKNOWN",
@@ -164,7 +155,7 @@ def test_yolo_build_blocks_review_labels(setup_db, tmp_path):
         build_yolo_dataset_from_session(sess.session_id, str(tmp_path / "blocked"))
 
 
-def test_dataset_version_crud(setup_db):
+def test_dataset_version_crud(ctx):
     """Basic CRUD for DatasetVersion."""
     from core.dataset_version import (
         create_dataset_version, get_dataset_version,
@@ -173,8 +164,8 @@ def test_dataset_version_crud(setup_db):
     )
 
     dv = create_dataset_version(
-        project_id=setup_db["project"].project_id,
-        spec_id=setup_db["spec"].spec_id,
+        project_id=ctx["project"].project_id,
+        spec_id=ctx["spec"].spec_id,
         version_name="crud_test",
         source_type="session",
         image_count=100,
@@ -188,7 +179,7 @@ def test_dataset_version_crud(setup_db):
     assert fetched.quality_score == 85.0
 
     # List
-    versions = list_dataset_versions(project_id=setup_db["project"].project_id)
+    versions = list_dataset_versions(project_id=ctx["project"].project_id)
     assert len(versions) == 1
 
     # Update

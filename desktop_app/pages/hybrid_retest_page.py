@@ -1,13 +1,28 @@
 """Hybrid retest page — YOLO + anomaly fusion retest for first-delivery verification."""
+
 from __future__ import annotations
 
 import os
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
-    QComboBox, QPushButton, QLabel, QLineEdit, QDoubleSpinBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QFileDialog, QProgressBar, QTextEdit,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QFormLayout,
+    QComboBox,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QDoubleSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QMessageBox,
+    QFileDialog,
+    QProgressBar,
+    QTextEdit,
 )
 
 from core.hybrid_retest import (
@@ -17,6 +32,7 @@ from core.model_version import list_model_versions
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import tr, I18nManager
 from desktop_app.workers.hybrid_retest_worker import HybridRetestWorker
+from desktop_app.theme_manager import ThemeManager
 
 
 class HybridRetestPage(QWidget):
@@ -28,6 +44,7 @@ class HybridRetestPage(QWidget):
         self._worker: HybridRetestWorker | None = None
         self._build_ui()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     # ── UI Construction ──────────────────────────────────────────
 
@@ -112,7 +129,7 @@ class HybridRetestPage(QWidget):
         layout.addWidget(self._progress_bar)
 
         self._progress_label = QLabel(tr("hybrid_retest.idle"))
-        self._progress_label.setStyleSheet("color: #888;")
+        self._progress_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY};")
         layout.addWidget(self._progress_label)
 
         # ── Summary ─────────────────────────────────────────────
@@ -148,15 +165,17 @@ class HybridRetestPage(QWidget):
 
         # ── Results table ───────────────────────────────────────
         self._results_table = QTableWidget(0, 7)
-        self._results_table.setHorizontalHeaderLabels([
-            tr("hybrid_retest.col_image"),
-            tr("hybrid_retest.col_decision"),
-            tr("hybrid_retest.col_reason"),
-            tr("hybrid_retest.col_yolo_count"),
-            tr("hybrid_retest.col_anomaly_score"),
-            tr("hybrid_retest.col_runtime"),
-            tr("hybrid_retest.col_review_id"),
-        ])
+        self._results_table.setHorizontalHeaderLabels(
+            [
+                tr("hybrid_retest.col_image"),
+                tr("hybrid_retest.col_decision"),
+                tr("hybrid_retest.col_reason"),
+                tr("hybrid_retest.col_yolo_count"),
+                tr("hybrid_retest.col_anomaly_score"),
+                tr("hybrid_retest.col_runtime"),
+                tr("hybrid_retest.col_review_id"),
+            ]
+        )
         self._results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -267,9 +286,15 @@ class HybridRetestPage(QWidget):
         self._refresh_models_btn.setEnabled(not running)
 
     def _reset_summary(self) -> None:
-        for lbl in [self._total_label, self._ok_label, self._ng_label,
-                     self._suspect_label, self._unknown_label,
-                     self._needs_review_label, self._routed_label]:
+        for lbl in [
+            self._total_label,
+            self._ok_label,
+            self._ng_label,
+            self._suspect_label,
+            self._unknown_label,
+            self._needs_review_label,
+            self._routed_label,
+        ]:
             lbl.setText("0")
         self._progress_bar.setValue(0)
 
@@ -289,8 +314,7 @@ class HybridRetestPage(QWidget):
         items = getattr(result, "items", [])
         self._results_table.setRowCount(len(items))
         for i, item in enumerate(items):
-            self._results_table.setItem(i, 0, QTableWidgetItem(
-                os.path.basename(item.image_path)))
+            self._results_table.setItem(i, 0, QTableWidgetItem(os.path.basename(item.image_path)))
             self._results_table.setItem(i, 1, QTableWidgetItem(item.final_decision))
             self._results_table.setItem(i, 2, QTableWidgetItem(item.reason))
             self._results_table.setItem(i, 3, QTableWidgetItem(str(item.yolo_detection_count)))
@@ -305,9 +329,11 @@ class HybridRetestPage(QWidget):
         self._suspect_label.setText(str(getattr(result, "suspect_count", 0)))
         self._unknown_label.setText(str(getattr(result, "unknown_count", 0)))
         self._needs_review_label.setText(str(getattr(result, "needs_review_count", 0)))
-        routed = (getattr(result, "suspect_count", 0) +
-                  getattr(result, "unknown_count", 0) +
-                  getattr(result, "needs_review_count", 0))
+        routed = (
+            getattr(result, "suspect_count", 0)
+            + getattr(result, "unknown_count", 0)
+            + getattr(result, "needs_review_count", 0)
+        )
         self._routed_label.setText(str(routed))
 
         self._log_view.append(
@@ -325,3 +351,9 @@ class HybridRetestPage(QWidget):
         self._progress_label.setText(tr("hybrid_retest.failed"))
         self._log_view.append(f"ERROR: {err}")
         QMessageBox.critical(self, tr("app.error"), err)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._progress_label.setStyleSheet(f"color: {c.TEXT_SECONDARY};")
+

@@ -1,4 +1,5 @@
 """Capture page — create and manage sample capture sessions."""
+
 from __future__ import annotations
 
 import os
@@ -8,20 +9,39 @@ from PySide6.QtCore import Qt, Signal
 
 from desktop_app.i18n import tr, bind, I18nManager
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView, QMessageBox, QDialog, QFormLayout,
-    QLineEdit, QSpinBox, QDialogButtonBox, QLabel, QProgressBar, QFileDialog,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QHeaderView,
+    QMessageBox,
+    QDialog,
+    QFormLayout,
+    QLineEdit,
+    QSpinBox,
+    QDialogButtonBox,
+    QLabel,
+    QProgressBar,
+    QFileDialog,
     QComboBox,
 )
 
 from core.capture_session import (
-    create_capture_session, list_capture_sessions, update_capture_session,
-    delete_capture_session, session_output_root, add_captured_image,
-    refresh_capture_session_count, get_capture_session,
+    create_capture_session,
+    list_capture_sessions,
+    update_capture_session,
+    delete_capture_session,
+    session_output_root,
+    add_captured_image,
+    refresh_capture_session_count,
+    get_capture_session,
 )
 from desktop_app.display import SESSION_STATUS_OPTIONS, session_status_label
 from desktop_app.app_context import AppContext
 from desktop_app.workers.folder_watch_worker import FolderWatchWorker
+from desktop_app.theme_manager import ThemeManager
 
 
 class CapturePage(QWidget):
@@ -36,6 +56,7 @@ class CapturePage(QWidget):
         self._build_ui()
         self._refresh()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -61,11 +82,17 @@ class CapturePage(QWidget):
 
         # Session table
         self._table = QTableWidget(0, 7)
-        self._table.setHorizontalHeaderLabels([
-            tr("capture.col_id"), tr("capture.col_name"), tr("capture.col_status"),
-            tr("capture.col_cameras"), tr("capture.col_target"), tr("capture.col_captured"),
-            tr("project.col_created"),
-        ])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("capture.col_id"),
+                tr("capture.col_name"),
+                tr("capture.col_status"),
+                tr("capture.col_cameras"),
+                tr("capture.col_target"),
+                tr("capture.col_captured"),
+                tr("project.col_created"),
+            ]
+        )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -79,7 +106,7 @@ class CapturePage(QWidget):
 
         # Status label
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #888;")
+        self._status_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY};")
         layout.addWidget(self._status_label)
 
         # Control buttons
@@ -94,16 +121,28 @@ class CapturePage(QWidget):
         self._stop_btn.clicked.connect(self._stop_capture)
         self._stop_btn.setEnabled(False)
         ctrl_layout.addWidget(self._stop_btn)
+        # Launch runtime button (Phase F: opens live capture view)
+        self._live_view_btn = QPushButton()
+        bind(self._live_view_btn, "capture.live_view")
+        self._live_view_btn.setObjectName("primaryBtn")
+        self._live_view_btn.clicked.connect(self._launch_live_view)
+        ctrl_layout.addWidget(self._live_view_btn)
         ctrl_layout.addStretch()
         layout.addLayout(ctrl_layout)
 
     def _refresh_text(self, lang: str = "") -> None:
         """Re-set table headers on language change."""
-        self._table.setHorizontalHeaderLabels([
-            tr("capture.col_id"), tr("capture.col_name"), tr("capture.col_status"),
-            tr("capture.col_cameras"), tr("capture.col_target"), tr("capture.col_captured"),
-            tr("project.col_created"),
-        ])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("capture.col_id"),
+                tr("capture.col_name"),
+                tr("capture.col_status"),
+                tr("capture.col_cameras"),
+                tr("capture.col_target"),
+                tr("capture.col_captured"),
+                tr("project.col_created"),
+            ]
+        )
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -152,7 +191,9 @@ class CapturePage(QWidget):
         if self._worker and self._worker.isRunning() and sid == self._active_session_id:
             QMessageBox.warning(self, tr("app.warning"), "采集运行中，请先停止再编辑。")
             return
-        dlg = CreateSessionDialog(self, project_id=sess.project_id, spec_id=sess.spec_id, session=sess)
+        dlg = CreateSessionDialog(
+            self, project_id=sess.project_id, spec_id=sess.spec_id, session=sess
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             update_capture_session(sid, **dlg.get_data())
             self._refresh()
@@ -174,14 +215,14 @@ class CapturePage(QWidget):
         sid = self._table.item(row, 0).text()
         import json
         from core.capture_session import get_capture_session
+
         sess = get_capture_session(sid)
         if not sess:
             return
 
         watch_dirs = json.loads(sess.watch_dirs)
         output_root = os.path.join(
-            sess.output_dir or session_output_root(sess.project_id),
-            sess.session_id, "raw"
+            sess.output_dir or session_output_root(sess.project_id), sess.session_id, "raw"
         )
         self._active_session_id = sess.session_id
         self._active_project_id = sess.project_id
@@ -255,6 +296,30 @@ class CapturePage(QWidget):
         QMessageBox.critical(self, tr("capture.capture_error"), err)
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+
+    def _launch_live_view(self) -> None:
+        """Open production runtime in site_capture container, linking current session."""
+        row = self._table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, tr("app.tip"), tr("app.select_session"))
+            return
+        session_id = self._table.item(row, 0).text()
+        from core.runtime_mode import RuntimeMode
+        from core.capture_session import get_capture_session
+
+        session = get_capture_session(session_id)
+        if session is not None:
+            if session.project_id:
+                self._ctx.set_current_project(session.project_id)
+            if session.spec_id:
+                self._ctx.set_current_spec(session.spec_id)
+
+        self._ctx.navigate_to_site_production.emit(RuntimeMode.BASELINE_CAPTURE.value, session_id)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._status_label.setStyleSheet(f"color: {c.TEXT_SECONDARY};")
 
 
 class CreateSessionDialog(QDialog):
@@ -359,6 +424,7 @@ class CreateSessionDialog(QDialog):
 
     def get_data(self) -> dict:
         import json
+
         watch_dirs: dict[str, str] = {}
         for cam_id, edit in self._watch_edits.items():
             val = edit.text().strip()

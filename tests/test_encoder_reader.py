@@ -1,7 +1,8 @@
 """Tests for encoder reader abstraction."""
-import time
 
 import pytest
+
+from tests import wait_for_condition
 
 from runtime.encoder_reader import SimulatedEncoderReader, RS422EncoderReader
 
@@ -19,7 +20,7 @@ def test_simulated_encoder_position_increases():
     enc = SimulatedEncoderReader()
     enc.connect({"line_speed_mpm": 120.0})
     pos1 = enc.read_position_meter()
-    time.sleep(0.3)
+    wait_for_condition(lambda: enc.read_position_meter() > pos1, timeout=2.0)
     pos2 = enc.read_position_meter()
     assert pos2 > pos1, f"Expected position to increase: {pos1} -> {pos2}"
 
@@ -27,7 +28,7 @@ def test_simulated_encoder_position_increases():
 def test_simulated_encoder_reset():
     enc = SimulatedEncoderReader()
     enc.connect({"line_speed_mpm": 60.0})
-    time.sleep(0.2)
+    wait_for_condition(lambda: enc.read_position_meter() > 0, timeout=2.0)
     pos = enc.read_position_meter()
     assert pos > 0
     enc.reset()

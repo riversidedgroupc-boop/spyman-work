@@ -1,22 +1,37 @@
 """Log Center page — multi-tab log viewer with filtering and search."""
+
 from __future__ import annotations
 
 import os
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTextEdit,
-    QComboBox, QLineEdit, QPushButton, QLabel, QCheckBox,
-    QFileDialog, QMessageBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTabWidget,
+    QTextEdit,
+    QComboBox,
+    QLineEdit,
+    QPushButton,
+    QLabel,
+    QCheckBox,
+    QFileDialog,
+    QMessageBox,
 )
 
 from core.log_manager import LogManager
 from desktop_app.workers.log_worker import LogTailWorker
 from desktop_app.i18n import tr, bind, I18nManager
+from desktop_app.theme_manager import ThemeManager
 
 
 LEVEL_MAP = {
-    "DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4,
+    "DEBUG": 0,
+    "INFO": 1,
+    "WARNING": 2,
+    "ERROR": 3,
+    "CRITICAL": 4,
 }
 LEVEL_NAMES = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -28,6 +43,19 @@ TAB_KEYS = {
     "error": "log_center.tab_error",
     "audit": "log_center.tab_audit",
 }
+
+
+def _replace_level_options(combo: QComboBox) -> None:
+    current = combo.currentData()
+    combo.blockSignals(True)
+    combo.clear()
+    combo.addItem(tr("log_center.level_all"), "ALL")
+    for level in LEVEL_NAMES:
+        combo.addItem(level, level)
+    idx = combo.findData(current or "ALL")
+    if idx >= 0:
+        combo.setCurrentIndex(idx)
+    combo.blockSignals(False)
 
 
 class LogCenterPage(QWidget):
@@ -44,6 +72,7 @@ class LogCenterPage(QWidget):
         self._full_content: dict[str, str] = {}  # category -> full text
         self._build_ui()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -55,8 +84,8 @@ class LogCenterPage(QWidget):
         bind(level_label, "log_center.filter_level")
         toolbar.addWidget(level_label)
         self._level_combo = QComboBox()
-        self._level_combo.addItems(["ALL"] + LEVEL_NAMES)
-        self._level_combo.currentTextChanged.connect(self._apply_filter)
+        _replace_level_options(self._level_combo)
+        self._level_combo.currentIndexChanged.connect(self._apply_filter)
         toolbar.addWidget(self._level_combo)
 
         search_label = QLabel()
@@ -93,7 +122,7 @@ class LogCenterPage(QWidget):
             viewer = QTextEdit()
             viewer.setReadOnly(True)
             viewer.setStyleSheet(
-                "background-color: #1E1E1E; color: #D4D4D4;"
+                f"background-color: {ThemeManager.current().BG_INPUT}; color: {ThemeManager.current().TEXT_PRIMARY};"
                 "font-family: 'Consolas', 'Courier New', monospace; font-size: 12px;"
             )
             tab_key = TAB_KEYS.get(cat, cat)
@@ -164,7 +193,7 @@ class LogCenterPage(QWidget):
         if viewer is None:
             return
 
-        level_filter = self._level_combo.currentText()
+        level_filter = self._level_combo.currentData() or "ALL"
         search_text = self._search_edit.text().lower()
 
         lines = content.split("\n")
@@ -243,7 +272,9 @@ class LogCenterPage(QWidget):
             return
 
         path, _ = QFileDialog.getSaveFileName(
-            self, tr("log_center.export"), f"{cat}.log",
+            self,
+            tr("log_center.export"),
+            f"{cat}.log",
             "Log Files (*.log *.txt);;All Files (*)",
         )
         if path:
@@ -268,6 +299,15 @@ class LogCenterPage(QWidget):
     # ------------------------------------------------------------------
 
     def _refresh_text(self, lang: str = "") -> None:
+        _replace_level_options(self._level_combo)
         for i, cat in enumerate(LogManager.CATEGORIES):
             tab_key = TAB_KEYS.get(cat, cat)
             self._tabs.setTabText(i, tr(tab_key))
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        for viewer in self._viewers.values():
+            viewer.setStyleSheet(f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY};"
+                "font-family: 'Consolas', 'Courier New', monospace; font-size: 12px;")
+

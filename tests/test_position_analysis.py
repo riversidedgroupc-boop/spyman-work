@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from tests import make_detection_box
+
 from core.position_analysis import (
     load_image_position_map,
     assign_detection_positions,
@@ -14,13 +16,6 @@ from core.position_analysis import (
     detect_continuous_defect_segments,
     summarize_position_statistics,
 )
-from core.schema import DetectionBox
-
-
-def _box(img="img_001.jpg", cid=0, cname="scratch", conf=0.9, bbox=None):
-    if bbox is None:
-        bbox = [10, 20, 100, 200]
-    return DetectionBox(img, cid, cname, conf, bbox)
 
 
 class TestLoadImagePositionMap:
@@ -60,8 +55,8 @@ class TestLoadImagePositionMap:
 class TestAssignDetectionPositions:
     def test_basic(self):
         preds = {
-            "img_001.jpg": [_box(img="img_001.jpg")],
-            "img_002.jpg": [_box(img="img_002.jpg", cname="dent")],
+            "img_001.jpg": [make_detection_box(img="img_001.jpg")],
+            "img_002.jpg": [make_detection_box(img="img_002.jpg", cname="dent")],
         }
         pos_map = {
             "img_001.jpg": {"meter_start": 0, "meter_end": 1, "meter_mid": 0.5},
@@ -73,7 +68,7 @@ class TestAssignDetectionPositions:
         assert result[1]["meter"] == 1.5
 
     def test_missing_position(self):
-        preds = {"img_003.jpg": [_box(img="img_003.jpg")]}
+        preds = {"img_003.jpg": [make_detection_box(img="img_003.jpg")]}
         pos_map = {}
         result = assign_detection_positions(preds, pos_map)
         assert len(result) == 1

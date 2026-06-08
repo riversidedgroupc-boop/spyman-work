@@ -1,0 +1,808 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CameraWorkbenchPageUi</class>
+ <widget class="QWidget" name="CameraWorkbenchPageUi">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>960</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item>
+    <!-- ── Context Bar ── -->
+    <widget class="QFrame" name="contextBar">
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Raised</enum>
+     </property>
+     <layout class="QHBoxLayout" name="contextBarLayout">
+      <property name="spacing">
+       <number>16</number>
+      </property>
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>8</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>8</number>
+      </property>
+      <item>
+       <layout class="QHBoxLayout" name="ctxCustomerLayout">
+        <property name="spacing">
+         <number>6</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="ctxCustomerLabel">
+          <property name="text">
+           <string>客户:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ctxCustomerValue">
+          <property name="text">
+           <string>—</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ctxProjectLayout">
+        <property name="spacing">
+         <number>6</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="ctxProjectLabel">
+          <property name="text">
+           <string>项目:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ctxProjectValue">
+          <property name="text">
+           <string>—</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ctxSpecLayout">
+        <property name="spacing">
+         <number>6</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="ctxSpecLabel">
+          <property name="text">
+           <string>规格:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ctxSpecValue">
+          <property name="text">
+           <string>—</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="ctxCountLayout">
+        <property name="spacing">
+         <number>6</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="ctxCountLabel">
+          <property name="text">
+           <string>相机数:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="ctxCountValue">
+          <property name="text">
+           <string>—</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="ctxBarSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="ctxBadge">
+        <property name="text">
+         <string>未选择规格</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <!-- ── Slot Section ── -->
+    <widget class="QGroupBox" name="slotGroup">
+     <property name="title">
+      <string>Camera Slots</string>
+     </property>
+     <layout class="QVBoxLayout" name="slotGroupLayout">
+      <item>
+       <layout class="QHBoxLayout" name="slotHeaderLayout">
+        <item>
+         <widget class="QLabel" name="slotTitle">
+          <property name="text">
+           <string>Camera Slots</string>
+          </property>
+          <property name="font">
+           <font>
+            <bold>true</bold>
+           </font>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="slotHeaderSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="scanButton">
+          <property name="text">
+           <string>🔍 Scan Devices</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="foundLabel">
+          <property name="text">
+           <string></string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QWidget" name="slotGridHost" native="true"/>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="connectAllRow">
+        <item>
+         <spacer name="connectAllSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="connectAllButton">
+          <property name="text">
+           <string>Connect All</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <!-- ── Parameter Section ── -->
+    <widget class="QGroupBox" name="paramGroup">
+     <property name="title">
+      <string>Camera Parameters</string>
+     </property>
+     <layout class="QVBoxLayout" name="paramGroupLayout">
+      <property name="spacing">
+       <number>10</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="paramTitle">
+        <property name="text">
+         <string>No camera selected</string>
+        </property>
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QGridLayout" name="paramGrid">
+        <property name="horizontalSpacing">
+         <number>10</number>
+        </property>
+        <property name="verticalSpacing">
+         <number>10</number>
+        </property>
+        <!-- Row 0: Exposure | Gain | Trigger Mode -->
+        <item row="0" column="0">
+         <layout class="QVBoxLayout" name="exposureLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="exposureLabel">
+            <property name="text">
+             <string>Exposure</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="exposureSpin">
+            <property name="minimum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>1000000.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>5000.000000000000000</double>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="suffix">
+             <string> us</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="1">
+         <layout class="QVBoxLayout" name="gainLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="gainLabel">
+            <property name="text">
+             <string>Gain</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="gainSpin">
+            <property name="minimum">
+             <double>0.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>40.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="suffix">
+             <string> dB</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="0" column="2">
+         <layout class="QVBoxLayout" name="triggerLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="triggerLabel">
+            <property name="text">
+             <string>Trigger Mode</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="triggerCombo">
+            <item>
+             <property name="text">
+              <string>Off</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>On</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <!-- Row 1: Trigger Source | Line Rate | Block Height -->
+        <item row="1" column="0">
+         <layout class="QVBoxLayout" name="triggerSourceLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="triggerSourceLabel">
+            <property name="text">
+             <string>Trigger Source</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="triggerSourceCombo">
+            <item>
+             <property name="text">
+              <string>Line0</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Line1</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Line2</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Line3</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Software</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="1">
+         <layout class="QVBoxLayout" name="lineRateLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="lineRateLabel">
+            <property name="text">
+             <string>Line Rate</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="lineRateSpin">
+            <property name="minimum">
+             <number>100</number>
+            </property>
+            <property name="maximum">
+             <number>200000</number>
+            </property>
+            <property name="value">
+             <number>20000</number>
+            </property>
+            <property name="suffix">
+             <string> Hz</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="2">
+         <layout class="QVBoxLayout" name="blockHeightLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="blockHeightLabel">
+            <property name="text">
+             <string>Block Height</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="blockHeightSpin">
+            <property name="minimum">
+             <number>64</number>
+            </property>
+            <property name="maximum">
+             <number>8192</number>
+            </property>
+            <property name="value">
+             <number>1024</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <!-- Row 2: Pixel Format | Width | Packet Size -->
+        <item row="2" column="0">
+         <layout class="QVBoxLayout" name="pixelFormatLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="pixelFormatLabel">
+            <property name="text">
+             <string>Pixel Format</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="pixelFormatCombo">
+            <item>
+             <property name="text">
+              <string>Mono8</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Mono10</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Mono12</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>BayerRG8</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>RGB8</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="1">
+         <layout class="QVBoxLayout" name="widthLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="widthLabel">
+            <property name="text">
+             <string>Width</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="widthSpin">
+            <property name="minimum">
+             <number>256</number>
+            </property>
+            <property name="maximum">
+             <number>8192</number>
+            </property>
+            <property name="value">
+             <number>2048</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="2">
+         <layout class="QVBoxLayout" name="packetSizeLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="packetSizeLabel">
+            <property name="text">
+             <string>Packet Size</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="packetSizeSpin">
+            <property name="minimum">
+             <number>1500</number>
+            </property>
+            <property name="maximum">
+             <number>65535</number>
+            </property>
+            <property name="value">
+             <number>9000</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <!-- Row 3: Inter Delay | Buffer | Reverse X/Y -->
+        <item row="3" column="0">
+         <layout class="QVBoxLayout" name="interDelayLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="interDelayLabel">
+            <property name="text">
+             <string>Inter Delay</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="interDelaySpin">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+            <property name="suffix">
+             <string> us</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="3" column="1">
+         <layout class="QVBoxLayout" name="bufferLayout">
+          <property name="spacing">
+           <number>2</number>
+          </property>
+          <item>
+           <widget class="QLabel" name="bufferLabel">
+            <property name="text">
+             <string>Buffer</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="bufferSpin">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>256</number>
+            </property>
+            <property name="value">
+             <number>16</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="3" column="2">
+         <layout class="QHBoxLayout" name="reverseLayout">
+          <item>
+           <widget class="QCheckBox" name="reverseXCheck">
+            <property name="text">
+             <string>Reverse X</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="reverseYCheck">
+            <property name="text">
+             <string>Reverse Y</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="reverseSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="paramButtonRow">
+        <item>
+         <widget class="QPushButton" name="applyButton">
+          <property name="text">
+           <string>Apply to Camera</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="saveButton">
+          <property name="text">
+           <string>Save to Spec</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="loadButton">
+          <property name="text">
+           <string>Load from Spec</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="paramBtnSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <!-- ── Preview + Diagnostics Splitter ── -->
+    <widget class="QSplitter" name="previewDiagSplitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QGroupBox" name="previewGroup">
+      <property name="title">
+       <string>Preview</string>
+      </property>
+      <layout class="QVBoxLayout" name="previewGroupLayout">
+       <item>
+        <widget class="QLabel" name="previewLabel">
+         <property name="text">
+          <string>Preview not started</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>240</width>
+           <height>160</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="previewInfo">
+         <property name="text">
+          <string>—</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="previewButtonRow">
+         <item>
+          <widget class="QPushButton" name="previewStartButton">
+           <property name="text">
+            <string>Start Preview</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="previewStopButton">
+           <property name="text">
+            <string>Stop Preview</string>
+           </property>
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="snapshotButton">
+           <property name="text">
+            <string>Snapshot</string>
+           </property>
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="previewBtnSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+             </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QGroupBox" name="diagGroup">
+      <property name="title">
+       <string>Diagnostics</string>
+      </property>
+      <layout class="QVBoxLayout" name="diagGroupLayout">
+       <item>
+        <widget class="QTextEdit" name="diagText">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <!-- ── Empty Placeholder ── -->
+    <widget class="QLabel" name="emptyPlaceholder">
+     <property name="text">
+      <string>Please select a product specification</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

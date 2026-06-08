@@ -1,34 +1,23 @@
 """Tests for camera_config model and CRUD."""
-import os
-import tempfile
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    # Create prerequisite: customer -> project -> spec
+@pytest.fixture
+def ctx():
+    """Create prerequisite customer -> project -> spec."""
     from core.customer import create_customer
     from core.project import create_project
     from core.product_spec import create_product_spec
     c = create_customer("TestCorp", "TC")
     p = create_project(c.customer_id, "TestProject")
     s = create_product_spec(p.project_id, "TestSpec", "铜", "管", camera_count=3)
-    yield {"customer": c, "project": p, "spec": s}
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
+    return {"customer": c, "project": p, "spec": s}
 
 
-def test_create_camera_config(setup_db):
+def test_create_camera_config(ctx):
     from core.camera_config import create_camera_config, get_camera_config
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = create_camera_config(spec.spec_id, camera_index=1, adapter_type="folder_watcher")
     assert cfg.config_id.startswith("CAMCONF_")
     assert cfg.camera_index == 1
@@ -46,9 +35,9 @@ def test_camera_index_out_of_range():
         CameraConfig(config_id="x", spec_id="x", camera_index=7)
 
 
-def test_list_camera_configs(setup_db):
+def test_list_camera_configs(ctx):
     from core.camera_config import create_camera_config, list_camera_configs
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     create_camera_config(spec.spec_id, camera_index=1)
     create_camera_config(spec.spec_id, camera_index=2)
     cfgs = list_camera_configs(spec.spec_id)
@@ -57,9 +46,9 @@ def test_list_camera_configs(setup_db):
     assert cfgs[1].camera_index == 2
 
 
-def test_update_camera_config(setup_db):
+def test_update_camera_config(ctx):
     from core.camera_config import create_camera_config, update_camera_config, get_camera_config
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = create_camera_config(spec.spec_id, camera_index=1, exposure_us=100.0)
     update_camera_config(cfg.config_id, exposure_us=200.0, gain_db=3.5)
     updated = get_camera_config(cfg.config_id)
@@ -67,17 +56,17 @@ def test_update_camera_config(setup_db):
     assert updated.gain_db == 3.5
 
 
-def test_delete_camera_config(setup_db):
+def test_delete_camera_config(ctx):
     from core.camera_config import create_camera_config, delete_camera_config, get_camera_config
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = create_camera_config(spec.spec_id, camera_index=1)
     delete_camera_config(cfg.config_id)
     assert get_camera_config(cfg.config_id) is None
 
 
-def test_roundtrip_dict(setup_db):
+def test_roundtrip_dict(ctx):
     from core.camera_config import CameraConfig
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = CameraConfig(
         config_id="CAMCONF_test", spec_id=spec.spec_id, camera_index=2,
         adapter_type="hikvision_mvs", trigger_mode="external",
@@ -94,10 +83,10 @@ def test_roundtrip_dict(setup_db):
     assert cfg2.model_binding == "model_v1"
 
 
-def test_camera_config_v6_structured_fields(setup_db):
+def test_camera_config_v6_structured_fields(ctx):
     from core.camera_config import create_camera_config, get_camera_config
 
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = create_camera_config(
         spec.spec_id,
         camera_index=2,
@@ -128,10 +117,10 @@ def test_camera_config_v6_structured_fields(setup_db):
     assert fetched.save_ng_image is False
 
 
-def test_camera_config_v7_line_scan_fields_persist(setup_db):
+def test_camera_config_v7_line_scan_fields_persist(ctx):
     from core.camera_config import create_camera_config, get_camera_config
 
-    spec = setup_db["spec"]
+    spec = ctx["spec"]
     cfg = create_camera_config(
         spec.spec_id,
         camera_index=1,

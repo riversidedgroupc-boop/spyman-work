@@ -9,19 +9,32 @@ from benchmark.benchmark_runner import BenchmarkReport
 
 
 def export_markdown(report: BenchmarkReport) -> str:
+    cfg = report.config
+    context_lines = ""
+    if cfg.project_id:
+        context_lines += f"- **Project**: {cfg.project_id}\n"
+    if cfg.dataset_version_id:
+        context_lines += f"- **Dataset Version**: {cfg.dataset_version_id}\n"
+    if cfg.model_version_id:
+        context_lines += f"- **Model Version**: {cfg.model_version_id}\n"
+
     return f"""# Benchmark Report — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Context
+{context_lines or '(no project context)'}
 
 ## Configuration
 | Parameter | Value |
 |-----------|-------|
-| Source | {report.config.source_type} |
-| Cameras | {report.config.camera_count} |
-| Line Speed | {report.config.line_speed_mpm} m/min |
-| Models | {report.config.model_combo} |
-| Save Mode | {report.config.save_mode} |
-| Batch Size | {report.config.batch_size} |
+| Source | {cfg.source_type} |
+| Backend | {cfg.backend} |
+| Cameras | {cfg.camera_count} |
+| Line Speed | {cfg.line_speed_mpm} m/min |
+| Models | {cfg.model_combo} |
+| Save Mode | {cfg.save_mode} |
+| Batch Size | {cfg.batch_size} |
 | Duration | {report.duration_sec:.0f}s |
-| Speed Multiplier | {report.config.speed_multiplier}x |
+| Speed Multiplier | {cfg.speed_multiplier}x |
 
 ## Throughput
 - **Avg Tile/s**: {report.avg_tiles_per_sec:.1f}

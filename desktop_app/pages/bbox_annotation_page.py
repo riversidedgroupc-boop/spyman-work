@@ -1,4 +1,5 @@
 """Bbox annotation page — image list + bbox drawing widget + completeness check."""
+
 from __future__ import annotations
 
 import os
@@ -28,8 +29,10 @@ from core.capture_session import (
 from core.dataset_validation import validate_yolo_detection
 from core.label_policy import is_defect_label, is_review_label, needs_bbox
 from desktop_app.app_context import AppContext
+from desktop_app.display import class_label
 from desktop_app.i18n import I18nManager, tr
 from desktop_app.widgets.bbox_annotation_widget import BboxAnnotationWidget
+from desktop_app.theme_manager import ThemeManager
 
 IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 
@@ -58,6 +61,7 @@ class BboxAnnotationPage(QWidget):
         self._build_ui()
         self._install_shortcuts()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # UI Construction
@@ -165,7 +169,7 @@ class BboxAnnotationPage(QWidget):
         bottom.addWidget(self._prev_btn)
 
         self._progress_label = QLabel("0/0")
-        self._progress_label.setStyleSheet("color: #CCC; font-size: 12px; padding: 0 12px;")
+        self._progress_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 12px; padding: 0 12px;")
         bottom.addWidget(self._progress_label)
 
         self._next_btn = QPushButton(tr("bbox.next_image"))
@@ -206,7 +210,13 @@ class BboxAnnotationPage(QWidget):
     def _refresh_text(self, lang: str = "") -> None:
         self._refresh_sessions()
 
+    def refresh(self) -> None:
+        """Reload session list and current image labels from storage."""
+        self._refresh_sessions()
+
     def _refresh_sessions(self) -> None:
+        current_path = self._bbox_widget.get_image_path()
+        reload_session_id = ""
         self._session_combo.blockSignals(True)
         current = self._current_session_id
         self._session_combo.clear()
@@ -219,7 +229,19 @@ class BboxAnnotationPage(QWidget):
             idx = self._session_combo.findData(current)
             if idx >= 0:
                 self._session_combo.setCurrentIndex(idx)
+                reload_session_id = current
+            else:
+                self._current_session_id = ""
         self._session_combo.blockSignals(False)
+        if reload_session_id:
+            self._load_images(reload_session_id)
+            self._restore_image_selection(current_path)
+
+    def _restore_image_selection(self, image_path: str) -> None:
+        if not image_path or image_path not in self._get_filtered_paths():
+            return
+        row = self._get_filtered_paths().index(image_path)
+        self._image_list.setCurrentRow(row)
 
     def _on_session_changed(self, index: int) -> None:
         session_id = self._session_combo.itemData(index)
@@ -313,8 +335,11 @@ class BboxAnnotationPage(QWidget):
                         from core.label_policy import is_background_label, is_review_label
 
                         opts = [
-                            o for o in load_label_options()
-                            if not is_background_label(o.value) and not is_review_label(o.value) and o.value.strip()
+                            o
+                            for o in load_label_options()
+                            if not is_background_label(o.value)
+                            and not is_review_label(o.value)
+                            and o.value.strip()
                         ]
                         if 0 <= class_id < len(opts):
                             return opts[class_id].label
@@ -417,7 +442,8 @@ class BboxAnnotationPage(QWidget):
                 prefix = "◇ "
 
             # Show label after filename
-            display_text = f"{prefix}{basename}    {label}" if label else f"{prefix}{basename}"
+            display_label = class_label(label) if label else ""
+            display_text = f"{prefix}{basename}    {display_label}" if display_label else f"{prefix}{basename}"
             item = QListWidgetItem(display_text)
             item.setData(Qt.ItemDataRole.UserRole, path)
 
@@ -501,8 +527,7 @@ class BboxAnnotationPage(QWidget):
         """Manual save."""
         self._bbox_widget.save_to_file()
         self._validation_label.setText(tr("bbox.auto_saved"))
-        self._validation_label.setStyleSheet("color: #4CAF50; font-size: 11px; padding: 0 8px;")
-
+        self._validation_label.setStyleSheet(f"color: {ThemeManager.current().SUCCESS}; font-size: 11px; padding: 0 8px;")
     def _on_bboxes_changed(self) -> None:
         """Called when bboxes change in the widget."""
         self._update_progress()
@@ -529,7 +554,7 @@ class BboxAnnotationPage(QWidget):
 
         self._progress_label.setText(
             f"{current_pos}/{filtered_total}"
-            + (f" (全部: {total})" if filtered_total != total else "")
+            + (tr("bbox.progress_filtered", total=total) if filtered_total != total else "")
             + f" | Bbox: {bbox_count}"
         )
 
@@ -551,31 +576,30 @@ class BboxAnnotationPage(QWidget):
         if result.can_train:
             self._validation_label.setText(tr("bbox.validation_passed"))
             self._validation_label.setStyleSheet(
-                "color: #4CAF50; font-size: 11px; font-weight: bold; padding: 0 8px;"
+                f"color: {ThemeManager.current().SUCCESS}; font-size: 11px; font-weight: bold; padding: 0 8px;"
             )
             QMessageBox.information(
                 self,
                 tr("app.tip"),
-                f"✓ 校验通过\n\n"
-                f"总图片: {result.total_images}\n"
-                f"OK: {result.ok_images}  NG: {result.ng_images}\n"
-                f"未标注: {result.unlabeled_images}\n"
-                f"缺 bbox 的 NG: {result.missing_bbox_ng_images}\n\n"
-                f"可以开始 YOLO 训练。",
+                tr(
+                    "bbox.validation_passed_detail",
+                    total=result.total_images,
+                    ok=result.ok_images,
+                    ng=result.ng_images,
+                    unlabeled=result.unlabeled_images,
+                    missing=result.missing_bbox_ng_images,
+                ),
             )
         else:
-            reason = "; ".join(result.errors) if result.errors else "未知原因"
-            self._validation_label.setText(
-                tr("bbox.validation_failed").format(reason=reason[:60])
-            )
+            reason = "; ".join(result.errors) if result.errors else tr("app.unknown")
+            self._validation_label.setText(tr("bbox.validation_failed").format(reason=reason[:60]))
             self._validation_label.setStyleSheet(
-                "color: #F44336; font-size: 11px; font-weight: bold; padding: 0 8px;"
+                f"color: {ThemeManager.current().ERROR}; font-size: 11px; font-weight: bold; padding: 0 8px;"
             )
             QMessageBox.warning(
                 self,
                 tr("app.warning"),
-                "✗ 校验失败\n\n"
-                + result.summary(),
+                tr("bbox.validation_failed_detail", summary=result.summary()),
             )
 
     # ------------------------------------------------------------------
@@ -590,3 +614,10 @@ class BboxAnnotationPage(QWidget):
         """Auto-save when leaving the page."""
         self._auto_save_current()
         super().hideEvent(event)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._progress_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 12px;")
+        self._validation_label.setStyleSheet(f"color: {c.SUCCESS}; font-size: 11px; padding: 0 8px;")
+

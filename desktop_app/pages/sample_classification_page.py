@@ -1,4 +1,5 @@
 """Sample classification page: 12-image queue labeling workflow."""
+
 from __future__ import annotations
 
 import os
@@ -52,6 +53,7 @@ from desktop_app.label_config import (
 )
 from desktop_app.widgets.image_viewer import ImageViewer
 from desktop_app.widgets.thumbnail_grid import ThumbnailGrid
+from desktop_app.theme_manager import ThemeManager
 
 BATCH_SIZE = 12
 IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
@@ -126,23 +128,24 @@ class SampleClassificationPage(QWidget):
         self._build_ui()
         self._install_shortcuts()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("采集会话:"))
+        top.addWidget(QLabel(tr("ui.label_session")))
 
         self._session_combo = QComboBox()
         self._session_combo.currentIndexChanged.connect(self._on_session_changed)
         top.addWidget(self._session_combo, 1)
 
-        refresh_btn = QPushButton("刷新")
+        refresh_btn = QPushButton(tr("app.refresh"))
         refresh_btn.setObjectName("secondaryBtn")
         refresh_btn.clicked.connect(self._refresh_sessions)
         top.addWidget(refresh_btn)
 
-        import_btn = QPushButton("导入本地文件夹")
+        import_btn = QPushButton(tr("classify.import_folder"))
         import_btn.clicked.connect(self._import_local_folder)
         top.addWidget(import_btn)
         layout.addLayout(top)
@@ -150,15 +153,15 @@ class SampleClassificationPage(QWidget):
         # ── Task type selector ──
         task_row = QHBoxLayout()
         task_row.setSpacing(8)
-        task_row.addWidget(QLabel("任务类型:"))
+        task_row.addWidget(QLabel(tr("ui.label_task_type")))
         self._task_type_combo = QComboBox()
-        self._task_type_combo.addItem("YOLO 检测", "yolo_detection")
-        self._task_type_combo.addItem("整图分类", "image_classification")
-        self._task_type_combo.addItem("异常检测", "anomaly_detection")
+        self._task_type_combo.addItem(tr("classify.task_yolo"), "yolo_detection")
+        self._task_type_combo.addItem(tr("classify.task_cls"), "image_classification")
+        self._task_type_combo.addItem(tr("classify.task_anomaly"), "anomaly_detection")
         self._task_type_combo.currentIndexChanged.connect(self._on_task_type_changed)
         task_row.addWidget(self._task_type_combo)
         task_row.addStretch()
-        self._open_bbox_btn = QPushButton("打开 bbox 标注")
+        self._open_bbox_btn = QPushButton(tr("task.open_bbox"))
         self._open_bbox_btn.setObjectName("primaryBtn")
         self._open_bbox_btn.clicked.connect(self._open_bbox_annotation)
         self._open_bbox_btn.hide()
@@ -166,11 +169,11 @@ class SampleClassificationPage(QWidget):
         layout.addLayout(task_row)
 
         self._task_hint_label = QLabel("")
-        self._task_hint_label.setStyleSheet("color: #888; font-size: 11px; padding: 2px 0;")
+        self._task_hint_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 11px; padding: 2px 0;")
         layout.addWidget(self._task_hint_label)
 
         self._current_label = QLabel("")
-        self._current_label.setStyleSheet("color: #B0B0B0; font-size: 13px; padding: 4px 0;")
+        self._current_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 13px; padding: 4px 0;")
         layout.addWidget(self._current_label)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -188,26 +191,26 @@ class SampleClassificationPage(QWidget):
         side_layout = QVBoxLayout(side)
         side_layout.setContentsMargins(8, 0, 0, 0)
 
-        stats_group = QGroupBox("分类统计")
+        stats_group = QGroupBox(tr("ui.label_stats"))
         self._stats_grid = QGridLayout(stats_group)
         side_layout.addWidget(stats_group)
 
-        label_group = QGroupBox("标注当前图片")
+        label_group = QGroupBox(tr("ui.label_label_current"))
         self._label_button_layout = QVBoxLayout(label_group)
         side_layout.addWidget(label_group)
 
-        manage_group = QGroupBox("缺陷类型设置")
+        manage_group = QGroupBox(tr("ui.label_defect_settings"))
         manage_layout = QVBoxLayout(manage_group)
         self._new_label_edit = QLineEdit()
-        self._new_label_edit.setPlaceholderText("输入新的缺陷类型，例如：划伤")
+        self._new_label_edit.setPlaceholderText(tr("classify.new_label_placeholder"))
         self._new_label_edit.returnPressed.connect(self._add_custom_label)
         manage_layout.addWidget(self._new_label_edit)
 
         manage_buttons = QHBoxLayout()
-        add_btn = QPushButton("新增")
+        add_btn = QPushButton(tr("ui.btn_add"))
         add_btn.clicked.connect(self._add_custom_label)
         manage_buttons.addWidget(add_btn)
-        delete_btn = QPushButton("删除选中")
+        delete_btn = QPushButton(tr("ui.btn_delete_selected"))
         delete_btn.setObjectName("dangerBtn")
         delete_btn.clicked.connect(self._delete_selected_label)
         manage_buttons.addWidget(delete_btn)
@@ -219,10 +222,10 @@ class SampleClassificationPage(QWidget):
 
         rename_row = QHBoxLayout()
         self._edit_label_name = QLineEdit()
-        self._edit_label_name.setPlaceholderText("修改选中标签名称")
+        self._edit_label_name.setPlaceholderText(tr("classify.edit_label_placeholder"))
         self._edit_label_name.returnPressed.connect(self._rename_selected_label)
         rename_row.addWidget(self._edit_label_name, 1)
-        rename_btn = QPushButton("重命名")
+        rename_btn = QPushButton(tr("ui.btn_rename"))
         rename_btn.clicked.connect(self._rename_selected_label)
         rename_row.addWidget(rename_btn)
         manage_layout.addLayout(rename_row)
@@ -235,8 +238,8 @@ class SampleClassificationPage(QWidget):
         splitter.setSizes([430, 790, 260])
         layout.addWidget(splitter, 1)
 
-        hint = QLabel("1-9=标注并自动下一张  A=上一张  D/Space=下一张  Ctrl+S=保存全部")
-        hint.setStyleSheet("color: #777; font-size: 10px; padding: 2px 5px;")
+        hint = QLabel(tr("ui.hint_shortcuts"))
+        hint.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 10px; padding: 2px 5px;")
         layout.addWidget(hint)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
@@ -261,6 +264,14 @@ class SampleClassificationPage(QWidget):
 
     def _refresh_text(self, lang: str = "") -> None:
         self._refresh_sessions()
+        # Update task type combo items for language switch
+        self._task_type_combo.setItemText(0, tr("classify.task_yolo"))
+        self._task_type_combo.setItemText(1, tr("classify.task_cls"))
+        self._task_type_combo.setItemText(2, tr("classify.task_anomaly"))
+        # Update task hint
+        task_type = self._task_type_combo.currentData()
+        if task_type:
+            self._update_task_hint(task_type)
         self._update_current_label()
         self._update_stats()
 
@@ -268,7 +279,7 @@ class SampleClassificationPage(QWidget):
         self._session_combo.blockSignals(True)
         current = self._current_session_id
         self._session_combo.clear()
-        self._session_combo.addItem("-- 选择会话 --", "")
+        self._session_combo.addItem(tr("classify.select_session"), "")
         pid = self._ctx.current_project_id
         if pid:
             for session in list_capture_sessions(pid):
@@ -306,9 +317,9 @@ class SampleClassificationPage(QWidget):
 
     def _update_task_hint(self, task_type: str) -> None:
         hints = {
-            "yolo_detection": "NG 图片需要 bbox 标注，缺少 bbox 的 NG 图片无法进入 YOLO 训练。",
-            "image_classification": "每张图片只需要一个整图标签，不需要 bbox 标注。",
-            "anomaly_detection": "OK 图片用于训练，NG 图片用于验证/测试。需要至少 10 张 OK 图片。",
+            "yolo_detection": tr("task.yolo_hint"),
+            "image_classification": tr("task.cls_hint"),
+            "anomaly_detection": tr("task.anomaly_hint"),
         }
         self._task_hint_label.setText(hints.get(task_type, ""))
         self._open_bbox_btn.setVisible(task_type == "yolo_detection")
@@ -333,13 +344,13 @@ class SampleClassificationPage(QWidget):
                 review_count += 1
         parts: list[str] = []
         if needs_bbox_count:
-            parts.append(f"{needs_bbox_count} 待标")
+            parts.append(f"{needs_bbox_count}{tr('ui.label_pending_bbox')}")
         if has_bbox_count:
-            parts.append(f"{has_bbox_count} 已标")
+            parts.append(f"{has_bbox_count}{tr('ui.label_has_bbox')}")
         if review_count:
-            parts.append(f"{review_count} 待复核")
+            parts.append(f"{review_count}{tr('ui.label_pending_review')}")
         if parts:
-            self._open_bbox_btn.setText(f"进入 bbox 标注：{' / '.join(parts)}")
+            self._open_bbox_btn.setText(tr("ui.label_bbox_enter", parts=" / ".join(parts)))
         else:
             self._open_bbox_btn.setText(tr("bbox.open_bbox"))
 
@@ -347,6 +358,7 @@ class SampleClassificationPage(QWidget):
     def _has_bbox_sidecar(image_path: str) -> bool:
         """Check if a YOLO .txt sidecar file exists with at least one bbox."""
         import os as _os
+
         stem, _ = _os.path.splitext(image_path)
         txt_path = stem + ".txt"
         if not _os.path.isfile(txt_path):
@@ -364,13 +376,19 @@ class SampleClassificationPage(QWidget):
     def _open_bbox_annotation(self) -> None:
         """Navigate to the bbox annotation page tab, defaulting to needs_bbox filter."""
         parent = self.window()
-        if hasattr(parent, "_data_tabs"):
+        if hasattr(parent, "_sample_review_tabs"):
+            parent._sample_review_tabs.setCurrentIndex(1)
+        elif hasattr(parent, "_data_tabs"):
             parent._data_tabs.setCurrentIndex(2)
         if hasattr(parent, "_on_page_selected"):
-            parent._on_page_selected("capture")
+            parent._on_page_selected("sample_review")
         # Set bbox page to "needs_bbox" filter mode
-        if hasattr(parent, "_bbox_page"):
-            parent._bbox_page._set_filter("needs_bbox")
+        bbox_page = getattr(parent, "_review_bbox_page", None) or getattr(parent, "_bbox_page", None)
+        if bbox_page is not None:
+            refresh = getattr(bbox_page, "refresh", None)
+            if callable(refresh):
+                refresh()
+            bbox_page._set_filter("needs_bbox")
 
     def _load_images(self, session_id: str) -> None:
         session = get_capture_session(session_id)
@@ -414,23 +432,27 @@ class SampleClassificationPage(QWidget):
 
     def _import_local_folder(self) -> None:
         if not self._current_session_id:
-            QMessageBox.information(self, "提示", tr("app.select_session"))
+            QMessageBox.information(self, tr("app.tip"), tr("app.select_session"))
             return
         project_id = self._ctx.current_project_id
         if not project_id:
-            QMessageBox.information(self, "提示", tr("app.select_project"))
+            QMessageBox.information(self, tr("app.tip"), tr("app.select_project"))
             return
-        folder = QFileDialog.getExistingDirectory(self, "导入本地文件夹")
+        folder = QFileDialog.getExistingDirectory(self, tr("classify.import_folder"))
         if not folder:
             return
         count = 0
         for fname in sorted(os.listdir(folder)):
             path = os.path.join(folder, fname)
             if self._is_image_file(path):
-                add_captured_image(self._current_session_id, project_id, path, fname, camera_id="local")
+                add_captured_image(
+                    self._current_session_id, project_id, path, fname, camera_id="local"
+                )
                 count += 1
         self._load_images(self._current_session_id)
-        QMessageBox.information(self, "完成", f"已导入 {count} 张图片")
+        QMessageBox.information(
+            self, tr("app.completed"), tr("classify.import_complete", count=count)
+        )
         self.data_changed.emit()
 
     def _on_image_selected(self, path: str) -> None:
@@ -452,16 +474,22 @@ class SampleClassificationPage(QWidget):
         if visible_paths:
             self._move_to_next_visible_path(path, visible_paths)
         else:
-            self._current_index = next_index_after_label(self._current_index, len(self._image_paths))
+            self._current_index = next_index_after_label(
+                self._current_index, len(self._image_paths)
+            )
         self._show_current_image()
         self._update_stats()
 
     def _save_label_for_path(self, path: str, label: str) -> None:
-        if not self._current_session_id or not self._ctx.current_project_id:
+        if not self._current_session_id:
+            return
+        session = get_capture_session(self._current_session_id)
+        project_id = self._ctx.current_project_id or (session.project_id if session else "")
+        if not project_id:
             return
         image_id = add_captured_image(
             self._current_session_id,
-            self._ctx.current_project_id,
+            project_id,
             path,
             os.path.basename(path),
             camera_id=self._cameras.get(path, ""),
@@ -488,7 +516,7 @@ class SampleClassificationPage(QWidget):
         batch = (
             self._image_paths
             if self._grid.has_active_filter()
-            else self._image_paths[self._batch_start:self._batch_start + BATCH_SIZE]
+            else self._image_paths[self._batch_start : self._batch_start + BATCH_SIZE]
         )
         self._grid.set_label_options(self._label_pairs())
         self._grid.set_images(batch, self._cameras, dict(self._labels))
@@ -496,15 +524,20 @@ class SampleClassificationPage(QWidget):
 
     def _update_current_label(self) -> None:
         if not (0 <= self._current_index < len(self._image_paths)):
-            self._current_label.setText("无图片")
+            self._current_label.setText(tr("classify.no_images"))
             return
         path = self._image_paths[self._current_index]
         label = self._labels.get(path, "")
         batch_end = min(self._batch_start + BATCH_SIZE, len(self._image_paths))
         self._current_label.setText(
-            f"当前: {self._current_index + 1}/{len(self._image_paths)} | "
-            f"本批: {self._batch_start + 1}-{batch_end} | "
-            f"标签: {class_label(label) if label else '未标注'}"
+            tr(
+                "ui.label_current_fmt",
+                current=self._current_index + 1,
+                total=len(self._image_paths),
+                batch_start=self._batch_start + 1,
+                batch_end=batch_end,
+                label=class_label(label) if label else tr("classify.unlabeled"),
+            )
         )
 
     def _update_stats(self) -> None:
@@ -554,7 +587,7 @@ class SampleClassificationPage(QWidget):
         for path, label in self._labels.items():
             self._save_label_for_path(path, label)
             saved += 1
-        QMessageBox.information(self, "保存", f"已保存 {saved} 条分类记录到数据库")
+        QMessageBox.information(self, tr("app.save"), tr("classify.save_complete", saved=saved))
 
     def _label_pairs(self) -> list[tuple[str, str]]:
         return [(option.value, option.label) for option in self._label_options]
@@ -580,10 +613,12 @@ class SampleClassificationPage(QWidget):
                 "color: white; font-size: 14px; font-weight: bold; padding: 8px;"
             )
             button.dropped_on_label.connect(self._move_label_before)
-            button.clicked.connect(lambda checked=False, value=option.value: self._classify_current(value))
+            button.clicked.connect(
+                lambda checked=False, value=option.value: self._classify_current(value)
+            )
             self._label_button_layout.addWidget(button)
         if len(self._label_options) > 9:
-            self._label_button_layout.addWidget(QLabel("前 9 个标签支持数字快捷键"))
+            self._label_button_layout.addWidget(QLabel(tr("classify.first_9_hint")))
 
         self._delete_label_combo.clear()
         for option in self._label_options:
@@ -652,3 +687,10 @@ class SampleClassificationPage(QWidget):
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._refresh_sessions()
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._task_hint_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")
+        self._current_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 13px;")
+

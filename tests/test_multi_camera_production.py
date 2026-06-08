@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from tests import wait_for_condition
+
 from runtime.frame_buffer import FrameBuffer
 from runtime.acquisition_pipeline import AcquisitionPipeline
 from runtime.inference_pipeline import InferencePipeline
@@ -69,7 +71,7 @@ def test_acquisition_pipeline_multi_camera():
     acq.add_camera("cam3", StubCameraAdapter())
 
     acq.start()
-    time.sleep(0.3)  # Let frames accumulate
+    wait_for_condition(lambda: acq.get_buffer().size() > 0, timeout=2.0)
     acq.stop()
 
     buf = acq.get_buffer()
@@ -85,7 +87,7 @@ def test_acquisition_pipeline_remove_camera():
     assert adapter._running is False  # not started yet
 
     acq.start()
-    time.sleep(0.1)
+    wait_for_condition(lambda: adapter._running, timeout=2.0)
     assert adapter._running is True
 
     acq.stop()
@@ -114,7 +116,7 @@ def test_inference_pipeline_per_camera_runner():
     buf.put({"camera_id": "cam2", "image": img, "timestamp": time.time()})
 
     pipeline.start()
-    time.sleep(0.1)
+    wait_for_condition(lambda: pipeline.total_inference_count >= 2, timeout=2.0)
     pipeline.stop()
 
     statuses = pipeline.get_all_statuses()
@@ -152,7 +154,7 @@ def test_inference_pipeline_ng_callback():
     buf.put({"camera_id": "cam1", "image": img, "timestamp": time.time()})
 
     pipeline.start()
-    time.sleep(0.1)
+    wait_for_condition(lambda: len(ng_results) >= 1, timeout=2.0)
     pipeline.stop()
 
     assert len(ng_results) >= 1
@@ -173,7 +175,7 @@ def test_inference_pipeline_default_runner_fallback():
     buf.put({"camera_id": "cam_unknown", "image": img, "timestamp": time.time()})
 
     pipeline.start()
-    time.sleep(0.1)
+    wait_for_condition(lambda: pipeline.total_inference_count >= 1, timeout=2.0)
     pipeline.stop()
 
     # The default runner should have been used for cam_unknown
@@ -200,7 +202,7 @@ def test_inference_pipeline_removes_temp_file_after_runner_error(monkeypatch):
     buf.put({"camera_id": "cam1", "image": img, "timestamp": time.time()})
 
     pipeline.start()
-    time.sleep(0.1)
+    wait_for_condition(lambda: bool(runner.seen_path), timeout=2.0)
     pipeline.stop()
 
     assert runner.seen_path

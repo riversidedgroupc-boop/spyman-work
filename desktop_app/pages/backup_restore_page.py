@@ -1,13 +1,25 @@
 """Backup & Restore page — create, list, restore, delete backups."""
+
 from __future__ import annotations
 
 import os
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QTableWidget,
-    QTableWidgetItem, QPushButton, QCheckBox, QLineEdit, QLabel,
-    QHeaderView, QMessageBox, QProgressBar, QFileDialog,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QCheckBox,
+    QLineEdit,
+    QLabel,
+    QHeaderView,
+    QMessageBox,
+    QProgressBar,
+    QFileDialog,
 )
 
 from core.config_backup import list_backups, delete_backup
@@ -82,10 +94,15 @@ class BackupRestorePage(QWidget):
         lv = QVBoxLayout(list_grp)
 
         self._table = QTableWidget(0, 5)
-        self._table.setHorizontalHeaderLabels([
-            tr("backup.col_date"), tr("backup.col_name"),
-            tr("backup.col_size"), tr("backup.col_items"), "",
-        ])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("backup.col_date"),
+                tr("backup.col_name"),
+                tr("backup.col_size"),
+                tr("backup.col_items"),
+                "",
+            ]
+        )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -122,7 +139,11 @@ class BackupRestorePage(QWidget):
         for row, meta in enumerate(backups):
             self._table.setItem(row, 0, QTableWidgetItem(meta.created_at))
             self._table.setItem(row, 1, QTableWidgetItem(meta.backup_name))
-            size_str = f"{meta.size_bytes / 1024:.1f} KB" if meta.size_bytes < 1024 * 1024 else f"{meta.size_bytes / 1024 / 1024:.1f} MB"
+            size_str = (
+                f"{meta.size_bytes / 1024:.1f} KB"
+                if meta.size_bytes < 1024 * 1024
+                else f"{meta.size_bytes / 1024 / 1024:.1f} MB"
+            )
             self._table.setItem(row, 2, QTableWidgetItem(size_str))
             self._table.setItem(row, 3, QTableWidgetItem(", ".join(meta.included_items)))
             self._table.setItem(row, 4, QTableWidgetItem(meta.backup_id))  # hidden
@@ -137,12 +158,15 @@ class BackupRestorePage(QWidget):
         self._progress.setMaximum(0)
         self._create_btn.setEnabled(False)
 
-        self._worker = BackupWorker("create", {
-            "name": name,
-            "include_db": self._db_cb.isChecked(),
-            "include_configs": self._cfg_cb.isChecked(),
-            "include_models": self._models_cb.isChecked(),
-        })
+        self._worker = BackupWorker(
+            "create",
+            {
+                "name": name,
+                "include_db": self._db_cb.isChecked(),
+                "include_configs": self._cfg_cb.isChecked(),
+                "include_models": self._models_cb.isChecked(),
+            },
+        )
         self._worker.message.connect(lambda m: None)
         self._worker.finished.connect(self._on_create_done)
         self._worker.error.connect(self._on_error)
@@ -157,7 +181,8 @@ class BackupRestorePage(QWidget):
             result = self._worker.get_result()
             if result:
                 QMessageBox.information(
-                    self, tr("app.completed"),
+                    self,
+                    tr("app.completed"),
                     tr("backup.completed", name=result.backup_name),
                 )
         self.data_changed.emit()
@@ -171,7 +196,8 @@ class BackupRestorePage(QWidget):
         name = self._table.item(row, 1).text()
 
         reply = QMessageBox.question(
-            self, tr("app.confirm"),
+            self,
+            tr("app.confirm"),
             tr("backup.confirm_restore", name=name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -199,7 +225,8 @@ class BackupRestorePage(QWidget):
         name = self._table.item(row, 1).text()
 
         reply = QMessageBox.question(
-            self, tr("app.confirm"),
+            self,
+            tr("app.confirm"),
             tr("app.delete_confirm", name=name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -217,7 +244,12 @@ class BackupRestorePage(QWidget):
     # ------------------------------------------------------------------
 
     def _refresh_text(self, lang: str = "") -> None:
-        self._table.setHorizontalHeaderLabels([
-            tr("backup.col_date"), tr("backup.col_name"),
-            tr("backup.col_size"), tr("backup.col_items"), "",
-        ])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("backup.col_date"),
+                tr("backup.col_name"),
+                tr("backup.col_size"),
+                tr("backup.col_items"),
+                "",
+            ]
+        )

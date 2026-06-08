@@ -2,26 +2,10 @@
 from __future__ import annotations
 
 import os
-import tempfile
-import time
 
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    os.environ["COPPER_VISION_DB_PATH"] = os.path.join(tmp, "test.db")
-    import importlib
-    import core.storage
-
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield tmp
-    import shutil
-
-    shutil.rmtree(tmp, ignore_errors=True)
-
+from tests import wait_for_condition
 
 @pytest.fixture
 def ctx():
@@ -33,7 +17,6 @@ def ctx():
     p = create_project(c.customer_id, "Phase5 Project")
     s = create_product_spec(p.project_id, "Tube", material="copper", geometry_type="tube")
     return {"project_id": p.project_id, "spec_id": s.spec_id}
-
 
 def test_add_captured_image_is_idempotent_and_updates_session_count(ctx):
     from core.capture_session import (
@@ -63,7 +46,6 @@ def test_add_captured_image_is_idempotent_and_updates_session_count(ctx):
     assert second_id == first_id
     assert len(list_captured_images(session.session_id)) == 1
     assert get_capture_session(session.session_id).captured_image_count == 1
-
 
 def test_build_yolo_dataset_from_session_writes_yaml_images_and_labels(ctx, tmp_path):
     from PIL import Image
@@ -102,7 +84,6 @@ def test_build_yolo_dataset_from_session_writes_yaml_images_and_labels(ctx, tmp_
     assert result.image_count == 1
     assert result.label_file_count == 1
 
-
 def test_record_ng_event_saves_image_and_persists_event(ctx, tmp_path):
     import numpy as np
 
@@ -139,7 +120,6 @@ def test_record_ng_event_saves_image_and_persists_event(ctx, tmp_path):
     assert events[0].detection_count == 1
     assert events[0].ng_image_path == event.ng_image_path
 
-
 def test_inference_pipeline_records_runner_errors():
     import numpy as np
 
@@ -158,9 +138,7 @@ def test_inference_pipeline_records_runner_errors():
     pipeline.set_runner(FailingRunner())
     pipeline.start()
     try:
-        deadline = time.time() + 2
-        while time.time() < deadline and pipeline.get_status()["error_count"] == 0:
-            time.sleep(0.05)
+        wait_for_condition(lambda: pipeline.get_status()["error_count"] > 0, timeout=2.0)
     finally:
         pipeline.stop()
 

@@ -1,12 +1,13 @@
 """Report generation worker — multi-format (Markdown, HTML, PDF, CSV, JSON)."""
+
 from __future__ import annotations
 
 import csv
 import json
 import os
 from datetime import datetime
-from io import StringIO
 
+from core.workspace_paths import get_reports_root, ensure_dir
 from desktop_app.i18n import tr
 from desktop_app.workers.base_worker import BaseWorker
 
@@ -29,7 +30,7 @@ class ReportWorker(BaseWorker):
         super().__init__(parent)
         self._report_type = report_type
         self._project_name = project_name
-        self._output_dir = output_dir or os.path.join("outputs", "reports")
+        self._output_dir = output_dir or ensure_dir(get_reports_root())
         self._context = context or {}
         self._export_format = export_format if export_format in SUPPORTED_FORMATS else "md"
         self._output_path = ""
@@ -43,34 +44,46 @@ class ReportWorker(BaseWorker):
         md_content = "\n".join(md_lines)
 
         if self._export_format == "md":
-            self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.md")
+            self._output_path = os.path.join(
+                self._output_dir, f"{self._report_type}_report_{ts}.md"
+            )
             with open(self._output_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
 
         elif self._export_format == "html":
-            self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.html")
+            self._output_path = os.path.join(
+                self._output_dir, f"{self._report_type}_report_{ts}.html"
+            )
             html = self._md_to_html(md_content)
             with open(self._output_path, "w", encoding="utf-8") as f:
                 f.write(html)
 
         elif self._export_format == "pdf":
-            self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.pdf")
+            self._output_path = os.path.join(
+                self._output_dir, f"{self._report_type}_report_{ts}.pdf"
+            )
             try:
                 self._write_pdf(md_content)
             except ImportError:
                 # Fallback to HTML
-                self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.html")
+                self._output_path = os.path.join(
+                    self._output_dir, f"{self._report_type}_report_{ts}.html"
+                )
                 html = self._md_to_html(md_content)
                 with open(self._output_path, "w", encoding="utf-8") as f:
                     f.write(html)
                 self.message.emit(tr("report.pdf_fallback"))
 
         elif self._export_format == "csv":
-            self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.csv")
+            self._output_path = os.path.join(
+                self._output_dir, f"{self._report_type}_report_{ts}.csv"
+            )
             self._write_csv()
 
         elif self._export_format == "json":
-            self._output_path = os.path.join(self._output_dir, f"{self._report_type}_report_{ts}.json")
+            self._output_path = os.path.join(
+                self._output_dir, f"{self._report_type}_report_{ts}.json"
+            )
             data = {
                 "report_type": self._report_type,
                 "project_name": self._project_name,
@@ -125,9 +138,23 @@ class ReportWorker(BaseWorker):
         lines.append(f"- **{tr('project.col_spec_name')}:** {ctx.get('spec', 'N/A')}")
         lines.append(f"- **{tr('worker.report_material')}:** {ctx.get('material', 'N/A')}")
         lines.append(f"- **{tr('worker.report_morphology')}:** {ctx.get('morphology', 'N/A')}")
-        lines.append(f"- **{tr('worker.report_line_speed')}:** {ctx.get('line_speed', 'N/A')} m/min")
+        lines.append(
+            f"- **{tr('worker.report_line_speed')}:** {ctx.get('line_speed', 'N/A')} m/min"
+        )
         lines.append(f"- **{tr('worker.report_camera_count')}:** {ctx.get('camera_count', 'N/A')}")
         lines.append("")
+        # Workflow status
+        wf_state = ctx.get("workflow_state", "")
+        if wf_state:
+            lines.append("## Workflow Status")
+            lines.append(f"- **State:** {wf_state}")
+            lines.append(f"- **Next Action:** {ctx.get('workflow_next_action', 'N/A')}")
+            wf_details = ctx.get("workflow_details", {})
+            if wf_details:
+                lines.append("- **Evidence:**")
+                for k, v in wf_details.items():
+                    lines.append(f"  - {k}: {v}")
+            lines.append("")
         lines.append(tr("worker.report_model_section"))
         lines.append(f"- **{tr('worker.report_model_name')}:** {ctx.get('model_name', 'N/A')}")
         lines.append(f"- **{tr('worker.report_model_path')}:** {ctx.get('model_path', 'N/A')}")
@@ -146,16 +173,18 @@ class ReportWorker(BaseWorker):
         lines.append(f"- **{tr('worker.report_batch_id')}:** {ctx.get('batch_id', 'N/A')}")
         lines.append(f"- **{tr('worker.report_start_time')}:** {ctx.get('start_time', 'N/A')}")
         lines.append(f"- **{tr('worker.report_end_time')}:** {ctx.get('end_time', 'N/A')}")
-        lines.append(f"- **{tr('worker.report_total_inspected')}:** {ctx.get('total_inspected', 0)}")
+        lines.append(
+            f"- **{tr('worker.report_total_inspected')}:** {ctx.get('total_inspected', 0)}"
+        )
         lines.append(f"- **{tr('worker.report_ng_count')}:** {ctx.get('ng_count', 0)}")
-        ng_rate = ctx.get('ng_rate')
+        ng_rate = ctx.get("ng_rate")
         if ng_rate is not None:
             lines.append(f"- **{tr('worker.report_ng_rate')}:** {ng_rate:.2%}")
         else:
             lines.append(f"- **{tr('worker.report_ng_rate')}:** N/A")
         lines.append("")
         lines.append(tr("worker.report_defect_section"))
-        for item in ctx.get('defect_distribution', []):
+        for item in ctx.get("defect_distribution", []):
             lines.append(f"- **{item.get('label', '')}:** {item.get('count', 0)}")
         return lines
 
@@ -203,6 +232,7 @@ ul {{ padding-left: 20px; }}
                 content = content.replace("**", "<strong>").replace("**", "</strong>")
                 # Fix alternating strong tags
                 import re
+
                 content = re.sub(r"<strong>(.*?)</strong>", r"<strong>\1</strong>", content)
                 # Simple approach: just replace pairs
                 content = _replace_bold(content)

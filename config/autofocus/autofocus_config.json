@@ -1,0 +1,37 @@
+{
+  "focus_mode": "changeover",
+  "capture": {
+    "speed_mode": "low_speed",
+    "sample_length_mm": 50.0,
+    "fallback_row_count": 4096,
+    "use_encoder_length": true
+  },
+  "search": {
+    "use_history_first": true,
+    "history_search_range_mm": 2.0,
+    "coarse_step_mm": 0.5,
+    "fine_step_mm": 0.05,
+    "full_search_z_min_mm": 0.0,
+    "full_search_z_max_mm": 30.0
+  },
+  "evaluation": {
+    "main_algorithm": "tenengrad",
+    "enable_laplacian": true,
+    "enable_gray_variance": false,
+    "overexpose_threshold": 250,
+    "overexpose_ratio_limit": 0.05,
+    "underexpose_threshold": 10,
+    "use_multi_roi_median": true
+  },
+  "curve": {
+    "enable_quadratic_fit": false,
+    "min_focus_score": 100.0,
+    "peak_ratio": 1.2,
+    "verify_ratio": 0.85,
+    "reject_peak_at_boundary": true
+  },
+  "depth_of_field": {
+    "enable": true,
+    "edge_score_ratio_threshold": 0.7
+  }
+}

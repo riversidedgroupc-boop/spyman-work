@@ -1,4 +1,5 @@
 """Zoomable, draggable image viewer using QGraphicsView."""
+
 from __future__ import annotations
 
 import os
@@ -6,9 +7,15 @@ import os
 from PySide6.QtCore import Qt, QRectF
 
 from desktop_app.i18n import tr
+from desktop_app.theme_manager import ThemeManager
 from PySide6.QtGui import QPainter, QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, QLabel,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsPixmapItem,
+    QVBoxLayout,
+    QWidget,
+    QLabel,
 )
 
 
@@ -27,8 +34,7 @@ class ImageViewer(QWidget):
         self._scene = QGraphicsScene(self)
         self._view = QGraphicsView(self._scene)
         self._view.setRenderHints(
-            QPainter.RenderHint.Antialiasing
-            | QPainter.RenderHint.SmoothPixmapTransform
+            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
         )
         self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self._view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
@@ -57,9 +63,7 @@ class ImageViewer(QWidget):
         self._current_zoom = 1.0
         self._view.resetTransform()
         self.fit_to_window()
-        self._info_label.setText(
-            f"{pixmap.width()}×{pixmap.height()} | {os.path.basename(path)}"
-        )
+        self._info_label.setText(f"{pixmap.width()}×{pixmap.height()} | {os.path.basename(path)}")
         self._info_label.adjustSize()
         self._info_label.move(8, self.height() - self._info_label.height() - 8)
         self._info_label.show()

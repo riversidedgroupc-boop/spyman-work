@@ -10,21 +10,33 @@ def _db_path() -> str:
     env_path = os.environ.get("COPPER_VISION_DB_PATH", "")
     if env_path:
         return env_path
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    db_dir = os.path.join(base, "data")
-    os.makedirs(db_dir, exist_ok=True)
-    return os.path.join(db_dir, "app.db")
+    env_workspace_root = os.environ.get("COPPER_VISION_WORKSPACE_ROOT", "")
+    from core.workspace_paths import get_app_data_dir as _ws_app_data
+
+    ws_dir = _ws_app_data()
+    os.makedirs(ws_dir, exist_ok=True)
+    ws_path = os.path.join(ws_dir, "app.db")
+    if not env_workspace_root and not os.path.exists(ws_path):
+        legacy = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data",
+            "app.db",
+        )
+        if os.path.exists(legacy):
+            return legacy
+    return ws_path
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path())
+    conn = sqlite3.connect(_db_path(), timeout=10.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
 # Current schema version for migration tracking
-_SCHEMA_VERSION = 8
+_SCHEMA_VERSION = 9
 
 
 def init_db() -> None:
@@ -346,6 +358,7 @@ def init_db() -> None:
     migrate_v6()
     migrate_v7()
     migrate_v8()
+    migrate_v9()
 
 
 def migrate_v6() -> None:
@@ -359,13 +372,13 @@ def migrate_v6() -> None:
     try:
         # Check if migration already applied
         row = conn.execute(
-            "SELECT version FROM schema_version WHERE version = ?", (_SCHEMA_VERSION,)
+            "SELECT version FROM schema_version WHERE version = 6"
         ).fetchone()
         if row:
             conn.close()
             return
-    except Exception:
-        pass  # schema_version table may not exist yet
+    except sqlite3.OperationalError:
+        pass  # schema_version table does not exist yet (OperationalError)
 
     # Ensure schema_version table exists
     conn.execute(
@@ -493,7 +506,7 @@ def migrate_v6() -> None:
         """)
 
     # Record schema version
-    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (6)")
     conn.commit()
     conn.close()
 
@@ -504,12 +517,12 @@ def migrate_v7() -> None:
     try:
         # Check if migration already applied
         row = conn.execute(
-            "SELECT version FROM schema_version WHERE version = ?", (_SCHEMA_VERSION,)
+            "SELECT version FROM schema_version WHERE version = 7"
         ).fetchone()
         if row:
             conn.close()
             return
-    except Exception:
+    except sqlite3.OperationalError:
         pass
 
     conn.execute(
@@ -558,7 +571,7 @@ def migrate_v7() -> None:
             )
         """)
 
-    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (7)")
     conn.commit()
     conn.close()
 
@@ -568,12 +581,12 @@ def migrate_v8() -> None:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT version FROM schema_version WHERE version = ?", (_SCHEMA_VERSION,)
+            "SELECT version FROM schema_version WHERE version = 8"
         ).fetchone()
         if row:
             conn.close()
             return
-    except Exception:
+    except sqlite3.OperationalError:
         pass
 
     conn.execute(
@@ -609,7 +622,56 @@ def migrate_v8() -> None:
             )
         """)
 
-    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (_SCHEMA_VERSION,))
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (8)")
+    conn.commit()
+    conn.close()
+
+
+def migrate_v9() -> None:
+    """Apply schema v9: add sample_library_entries table for cross-project provenance."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT version FROM schema_version WHERE version = 9"
+        ).fetchone()
+        if row:
+            conn.close()
+            return
+    except sqlite3.OperationalError:
+        pass
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
+    )
+
+    existing_tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "sample_library_entries" not in existing_tables:
+        conn.execute("""
+            CREATE TABLE sample_library_entries (
+                entry_id TEXT PRIMARY KEY,
+                current_project_id TEXT NOT NULL,
+                current_dataset_version_id TEXT,
+                source_kind TEXT NOT NULL DEFAULT 'current_capture',
+                source_project_id TEXT,
+                source_dataset_version_id TEXT,
+                source_capture_session_id TEXT,
+                source_image_id TEXT,
+                source_image_path TEXT,
+                current_image_path TEXT NOT NULL DEFAULT '',
+                original_label TEXT NOT NULL DEFAULT '',
+                current_label TEXT NOT NULL DEFAULT '',
+                human_review_status TEXT NOT NULL DEFAULT 'unreviewed',
+                device_config_snapshot TEXT NOT NULL DEFAULT '{}',
+                import_reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (current_project_id) REFERENCES projects(project_id)
+            )
+        """)
+
+    conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (9)")
     conn.commit()
     conn.close()
 

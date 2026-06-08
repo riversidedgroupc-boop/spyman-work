@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core.id_utils import generate_id
-from core.storage import delete, fetch_all, fetch_one, insert, update
+from core.storage import fetch_all, fetch_one, insert, update
 
 
 @dataclass
@@ -102,4 +102,6 @@ def update_customer(customer_id: str, **kwargs) -> Customer | None:
 
 
 def delete_customer(customer_id: str) -> None:
-    delete("customers", customer_id)
+    from core.project_cascade import delete_customer_cascade
+
+    delete_customer_cascade(customer_id)

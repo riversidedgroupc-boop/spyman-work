@@ -24,6 +24,7 @@ echo [2/3] Running PyInstaller...
     --hidden-import PySide6.QtCore ^
     --hidden-import PySide6.QtGui ^
     --hidden-import PySide6.QtWidgets ^
+    --hidden-import qt_material ^
     --hidden-import ultralytics ^
     --hidden-import cv2 ^
     --hidden-import numpy ^

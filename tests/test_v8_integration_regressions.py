@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import tempfile
-import time
 
 import numpy as np
+
+from tests import wait_for_condition
 
 from benchmark.metrics_collector import MetricsCollector
 from gpu_scheduler.model_pool import ModelEngine, ModelEnginePool
@@ -86,7 +87,7 @@ def test_scheduler_result_callback_can_drive_async_writer():
         writer.start()
         scheduler.start()
         pool.push(make_tile())
-        time.sleep(0.2)
+        wait_for_condition(lambda: writer.get_stats()["written"] >= 1, timeout=2.0)
         scheduler.stop()
         writer.stop()
 
@@ -101,9 +102,9 @@ def test_metrics_collector_uses_tile_pop_count_not_batch_count():
     collector = MetricsCollector(sample_interval_sec=0.05)
     collector.set_sources(pool, None, None)
     collector.start()
-    time.sleep(0.02)
+    wait_for_condition(lambda: len(collector.history()) >= 1, timeout=2.0, interval=0.01)
     pool.pop_batch(4)
-    time.sleep(0.08)
+    wait_for_condition(lambda: max(s.tiles_per_sec for s in collector.history()) > 0, timeout=2.0)
     collector.stop()
 
     assert max(s.tiles_per_sec for s in collector.history()) > 20

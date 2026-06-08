@@ -1,23 +1,7 @@
 """Tests for product spec model and CRUD."""
 import os
-import tempfile
 
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
-
 
 @pytest.fixture
 def project():
@@ -25,7 +9,6 @@ def project():
     from core.project import create_project
     c = create_customer("Spec Test Corp", "STC")
     return create_project(c.customer_id, "Spec Test Project")
-
 
 def test_create_product_spec(project):
     from core.product_spec import create_product_spec, get_product_spec
@@ -43,7 +26,6 @@ def test_create_product_spec(project):
     fetched = get_product_spec(s.spec_id)
     assert fetched is not None
 
-
 def test_validation_camera_count(project):
     from core.product_spec import create_product_spec
     with pytest.raises(ValueError, match="camera_count"):
@@ -57,7 +39,6 @@ def test_validation_camera_count(project):
             geometry_type="管", camera_count=7,
         )
 
-
 def test_validation_speed_range(project):
     from core.product_spec import create_product_spec
     with pytest.raises(ValueError):
@@ -66,7 +47,6 @@ def test_validation_speed_range(project):
             geometry_type="管",
             line_speed_min_mpm=150, line_speed_max_mpm=100, target_speed_mpm=120,
         )
-
 
 def test_list_by_project(project):
     from core.product_spec import create_product_spec, list_product_specs

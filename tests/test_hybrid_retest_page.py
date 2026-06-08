@@ -405,8 +405,8 @@ def test_results_populated_after_run(
 def test_nav_item_registered(qapp: QApplication):
     from desktop_app.constants import NAV_ITEMS
     ids = [item["id"] for item in NAV_ITEMS]
-    assert "hybrid_retest" in ids
-    hr_item = next(item for item in NAV_ITEMS if item["id"] == "hybrid_retest")
+    assert "hybrid_runtime" in ids
+    hr_item = next(item for item in NAV_ITEMS if item["id"] == "hybrid_runtime")
     assert "label" in hr_item
     assert hr_item["icon"]
 

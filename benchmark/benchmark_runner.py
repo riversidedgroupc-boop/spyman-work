@@ -24,6 +24,10 @@ class BenchmarkConfig:
     duration_sec: float = 1800  # 30 minutes
     source_type: str = "simulated"  # simulated, real_camera, history_replay
     speed_multiplier: float = 1.0  # 0.5x, 1x, 2x, 4x, 8x
+    backend: str = "auto"  # pytorch, onnx, tensorrt, auto
+    project_id: str = ""
+    dataset_version_id: str = ""
+    model_version_id: str = ""
 
 
 @dataclass

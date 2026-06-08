@@ -1,20 +1,5 @@
 """Tests for capture session model."""
-import os
-import tempfile
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage, importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
 
 
 @pytest.fixture

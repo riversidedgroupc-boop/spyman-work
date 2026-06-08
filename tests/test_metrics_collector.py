@@ -1,7 +1,7 @@
 """Tests for benchmark/metrics_collector.py — MetricsCollector and MetricSnapshot."""
 from __future__ import annotations
 
-import time
+from tests import wait_for_condition
 
 from benchmark.metrics_collector import MetricsCollector, MetricSnapshot
 
@@ -55,7 +55,7 @@ class TestMetricsCollector:
     def test_collects_history_while_running(self):
         collector = MetricsCollector(sample_interval_sec=0.05)
         collector.start()
-        time.sleep(0.3)
+        wait_for_condition(lambda: len(collector.history()) >= 2, timeout=2.0)
         collector.stop()
         history = collector.history()
         assert len(history) >= 2
@@ -63,7 +63,7 @@ class TestMetricsCollector:
     def test_snapshot_returns_last_entry(self):
         collector = MetricsCollector(sample_interval_sec=0.05)
         collector.start()
-        time.sleep(0.25)
+        wait_for_condition(lambda: collector.snapshot().timestamp > 0, timeout=2.0)
         snap = collector.snapshot()
         collector.stop()
         # After running, snapshot should have a real timestamp > 0
@@ -72,7 +72,7 @@ class TestMetricsCollector:
     def test_clear_empties_history(self):
         collector = MetricsCollector(sample_interval_sec=0.05)
         collector.start()
-        time.sleep(0.2)
+        wait_for_condition(lambda: len(collector.history()) > 0, timeout=2.0)
         collector.stop()
         assert len(collector.history()) > 0
         collector.clear()
@@ -87,7 +87,7 @@ class TestMetricsCollector:
         collector.set_sources(None, None, None)
         # Sampling loop should start even with None sources
         collector.start()
-        time.sleep(0.1)
+        wait_for_condition(lambda: len(collector.history()) >= 1, timeout=2.0)
         collector.stop()
         # History should still accumulate (CPU/memory data)
         assert len(collector.history()) >= 1

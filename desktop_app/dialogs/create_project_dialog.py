@@ -1,10 +1,19 @@
 """Dialog for creating or editing a project."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, QDialogButtonBox, QMessageBox, QLabel,
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QComboBox,
+    QDialogButtonBox,
+    QMessageBox,
+    QLabel,
 )
 
+from core.customer import list_customers
 from desktop_app.display import PROJECT_TYPE_OPTIONS
 from desktop_app.i18n import tr, bind
 
@@ -23,6 +32,23 @@ class CreateProjectDialog(QDialog):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         form = QFormLayout()
+
+        # Customer selector (for new projects — pick which customer this belongs to)
+        self._customer_combo = QComboBox()
+        customers = list_customers()
+        for c in customers:
+            self._customer_combo.addItem(c.customer_name, c.customer_id)
+        if self._customer_id:
+            idx = self._customer_combo.findData(self._customer_id)
+            if idx >= 0:
+                self._customer_combo.setCurrentIndex(idx)
+        elif customers:
+            self._customer_combo.setCurrentIndex(0)
+        self._customer_combo.setVisible(not self._edit_data and len(customers) > 1)
+        if not self._edit_data:
+            customer_label = QLabel()
+            bind(customer_label, "selector.customer")
+            form.addRow(customer_label, self._customer_combo)
 
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText(tr("proj.name_placeholder"))
@@ -58,6 +84,12 @@ class CreateProjectDialog(QDialog):
             QMessageBox.warning(self, tr("app.validation_failed"), tr("proj.name_required"))
             return
         self.accept()
+
+    @property
+    def customer_id(self) -> str:
+        if self._edit_data:
+            return self._customer_id
+        return self._customer_combo.currentData() or self._customer_id
 
     def get_data(self) -> dict:
         return {

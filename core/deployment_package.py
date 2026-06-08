@@ -304,7 +304,7 @@ def _generate_runtime_backend_json(
             best_artifact = get_export_artifact(best_id)
             if best_artifact is not None:
                 recommended_backend = best_artifact.backend
-    except Exception:
+    except (ImportError, ValueError):
         pass
 
     # Fallback inference from the passed-in artifact dicts

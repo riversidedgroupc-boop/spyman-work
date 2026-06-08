@@ -1,4 +1,5 @@
 """Background worker for tailing log file content."""
+
 from __future__ import annotations
 
 import os

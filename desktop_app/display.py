@@ -1,4 +1,5 @@
 """Display labels for internal enum values used by the desktop UI."""
+
 from __future__ import annotations
 
 

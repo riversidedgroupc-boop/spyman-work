@@ -1,24 +1,7 @@
 """Tests for core.anomaly_review — AnomalyReview CRUD + status transitions."""
 from __future__ import annotations
 
-import os
-import shutil
-import tempfile
-
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import importlib
-    import core.storage
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    shutil.rmtree(tmp, ignore_errors=True)
 
 
 @pytest.fixture

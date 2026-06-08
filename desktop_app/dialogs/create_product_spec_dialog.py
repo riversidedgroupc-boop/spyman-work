@@ -1,20 +1,42 @@
 """Dialog for creating or editing a product specification."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QLineEdit, QComboBox,
-    QDoubleSpinBox, QSpinBox, QDialogButtonBox, QMessageBox, QLabel,
+    QDialog,
+    QVBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QComboBox,
+    QDoubleSpinBox,
+    QSpinBox,
+    QDialogButtonBox,
+    QMessageBox,
+    QLabel,
 )
 
+from core.project import list_projects
 from desktop_app.i18n import tr, bind
 
-VALID_MATERIALS = ["铜", "铜合金", "铝", "铝合金", "不锈钢", "碳钢", "钛合金", "塑料", "复合材料", "其他"]
+VALID_MATERIALS = [
+    "铜",
+    "铜合金",
+    "铝",
+    "铝合金",
+    "不锈钢",
+    "碳钢",
+    "钛合金",
+    "塑料",
+    "复合材料",
+    "其他",
+]
 VALID_GEOMETRIES = ["管", "棒", "线", "板", "带", "扁管", "异形件", "其他"]
 
 
 class CreateProductSpecDialog(QDialog):
-    def __init__(self, parent=None, edit_data: dict | None = None) -> None:
+    def __init__(self, parent=None, project_id: str = "", edit_data: dict | None = None) -> None:
         super().__init__(parent)
+        self._project_id = project_id
         self._edit_data = edit_data
         bind(self, "spec.title_edit" if edit_data else "spec.title_new", setter="setWindowTitle")
         self.setMinimumWidth(450)
@@ -25,6 +47,23 @@ class CreateProductSpecDialog(QDialog):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         form = QFormLayout()
+
+        # Project selector (for new specs — pick which project this belongs to)
+        self._project_combo = QComboBox()
+        projects = list_projects()
+        for p in projects:
+            self._project_combo.addItem(p.project_name, p.project_id)
+        if self._project_id:
+            idx = self._project_combo.findData(self._project_id)
+            if idx >= 0:
+                self._project_combo.setCurrentIndex(idx)
+        elif projects:
+            self._project_combo.setCurrentIndex(0)
+        self._project_combo.setVisible(not self._edit_data and len(projects) > 1)
+        if not self._edit_data:
+            project_label = QLabel()
+            bind(project_label, "selector.project")
+            form.addRow(project_label, self._project_combo)
 
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText(tr("spec.name_placeholder"))
@@ -123,6 +162,12 @@ class CreateProductSpecDialog(QDialog):
             QMessageBox.warning(self, tr("app.validation_failed"), tr("spec.target_speed_invalid"))
             return
         self.accept()
+
+    @property
+    def project_id(self) -> str:
+        if self._edit_data:
+            return self._project_id
+        return self._project_combo.currentData() or self._project_id
 
     def get_data(self) -> dict:
         return {

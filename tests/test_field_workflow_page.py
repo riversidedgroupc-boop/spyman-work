@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 
@@ -28,6 +28,7 @@ def _setup_db() -> Generator[None, None, None]:
     db_path = os.path.join(tmp, "test.db")
     os.environ["COPPER_VISION_DB_PATH"] = db_path
     import importlib
+
     import core.storage
     importlib.reload(core.storage)
     core.storage.init_db()
@@ -39,8 +40,8 @@ def _setup_db() -> Generator[None, None, None]:
 def ctx() -> dict[str, str]:
     """Create parent rows: customer → project → spec."""
     from core.customer import create_customer
-    from core.project import create_project
     from core.product_spec import create_product_spec
+    from core.project import create_project
     c = create_customer("FW Test Co", "FWT")
     p = create_project(c.customer_id, "FW Test Proj")
     s = create_product_spec(p.project_id, "FW Spec", material="铜", geometry_type="管")
@@ -69,13 +70,16 @@ def test_page_constructs(qapp: QApplication):
     w.close()
 
 
-def test_page_has_stepper_and_review_table(qapp: QApplication):
+def test_page_has_review_workspace_sections(qapp: QApplication):
     from desktop_app.pages.field_workflow_page import FieldWorkflowPage
     w = FieldWorkflowPage()
-    # Should have 7 step widgets
-    assert len(w._step_widgets) == 7
-    # Should have review table
+    assert not hasattr(w, "_step_widgets")
+    assert not hasattr(w, "_launch_baseline_btn")
+    assert not hasattr(w, "_launch_hybrid_btn")
+    assert w._session_combo is not None
     assert w._review_table is not None
+    assert w._defect_table is not None
+    assert w._training_stats_form is not None
     w.close()
 
 
@@ -92,31 +96,28 @@ def test_no_context_shows_empty_state(qapp: QApplication):
     w = FieldWorkflowPage()
     w._on_refresh()  # Force refresh with no context
 
-    # All steps should be blocked
-    for sw in w._step_widgets:
-        assert sw._badge.text() != ""
-
     # Tables and combos should be empty
     assert w._review_table.rowCount() == 0
     assert w._defect_table.rowCount() == 0
     assert w._session_combo.count() == 0
     assert w._defect_combo.count() == 0
+    assert w._session_status_label.text() == ""
     w.close()
 
 
-def test_no_session_shows_pending_step3(qapp: QApplication, ctx: dict[str, str]):
-    """With context but no session, step 3 should be pending."""
+def test_context_without_session_shows_empty_review_workspace(qapp: QApplication, ctx: dict[str, str]):
+    """With context but no field session, the review workspace stays empty."""
     _set_app_context(ctx)
 
     from desktop_app.pages.field_workflow_page import FieldWorkflowPage
     w = FieldWorkflowPage()
     w._on_refresh()
 
-    # Steps 0-1 blocked (hardware/baseline), step 2 pending
-    assert w._step_widgets[2]._badge.text() != ""
-    # Step 3-6 blocked
-    for i in range(3, 7):
-        assert w._step_widgets[i]._badge.text() != ""
+    assert w._session_combo.count() == 0
+    assert w._review_table.rowCount() == 0
+    assert w._defect_table.rowCount() == 0
+    assert w._defect_combo.count() == 0
+    assert w._tr_readiness_label.text() != ""
     w.close()
 
 
@@ -231,8 +232,8 @@ def test_create_defect_without_code_shows_warning(
 def test_review_queue_shows_entries(qapp: QApplication, ctx: dict[str, str]):
     _set_app_context(ctx)
 
-    from core.field_session import create_field_session
     from core.anomaly_review import create_anomaly_review
+    from core.field_session import create_field_session
     fs = create_field_session(
         project_id=ctx["project_id"],
         spec_id=ctx["spec_id"],
@@ -266,8 +267,8 @@ def test_auto_load_review_queue_on_refresh(qapp: QApplication, ctx: dict[str, st
     """P1 regression: _on_refresh with existing session+reviews auto-populates review table."""
     _set_app_context(ctx)
 
-    from core.field_session import create_field_session
     from core.anomaly_review import create_anomaly_review
+    from core.field_session import create_field_session
     fs = create_field_session(
         project_id=ctx["project_id"],
         spec_id=ctx["spec_id"],
@@ -293,11 +294,88 @@ def test_auto_load_review_queue_on_refresh(qapp: QApplication, ctx: dict[str, st
     w.close()
 
 
-def test_mark_review_normal(qapp: QApplication, ctx: dict[str, str]):
+def test_sessions_are_filtered_by_current_spec(qapp: QApplication, ctx: dict[str, str]):
     _set_app_context(ctx)
 
     from core.field_session import create_field_session
+    from core.product_spec import create_product_spec
+
+    other_spec = create_product_spec(
+        ctx["project_id"],
+        "FW Other Spec",
+        material="copper",
+        geometry_type="tube",
+    )
+    keep = create_field_session(
+        project_id=ctx["project_id"],
+        spec_id=ctx["spec_id"],
+        session_type="anomaly_exploration",
+    )
+    create_field_session(
+        project_id=ctx["project_id"],
+        spec_id=other_spec.spec_id,
+        session_type="anomaly_exploration",
+    )
+
+    from desktop_app.pages.field_workflow_page import FieldWorkflowPage
+
+    w = FieldWorkflowPage()
+    w._on_refresh()
+
+    assert w._session_combo.count() == 1
+    assert w._session_combo.itemData(0) == keep.field_session_id
+
+    w.close()
+
+
+def test_delete_current_session_refreshes_ui(
+    qapp: QApplication, ctx: dict[str, str], monkeypatch: pytest.MonkeyPatch,
+):
+    _set_app_context(ctx)
+
+    import desktop_app.pages.field_workflow_page as fwp
+    from core.anomaly_review import create_anomaly_review, get_anomaly_review
+    from core.field_session import create_field_session, get_field_session
+
+    fs = create_field_session(
+        project_id=ctx["project_id"],
+        spec_id=ctx["spec_id"],
+        session_type="anomaly_exploration",
+    )
+    review = create_anomaly_review(field_session_id=fs.field_session_id, anomaly_score=0.78)
+
+    monkeypatch.setattr(
+        fwp.QMessageBox,
+        "question",
+        lambda *a, **kw: fwp.QMessageBox.StandardButton.Yes,
+    )
+    infos: list[str] = []
+    monkeypatch.setattr(fwp.QMessageBox, "information", lambda *a, **kw: infos.append("info"))
+
+    from desktop_app.pages.field_workflow_page import FieldWorkflowPage
+
+    w = FieldWorkflowPage()
+    w._on_refresh()
+    assert w._session_combo.count() == 1
+    assert w._review_table.rowCount() == 1
+
+    w._on_delete_session()
+
+    assert get_field_session(fs.field_session_id) is None
+    assert get_anomaly_review(review.review_id) is None
+    assert w._current_session_id == ""
+    assert w._session_combo.count() == 0
+    assert w._review_table.rowCount() == 0
+    assert infos == ["info"]
+
+    w.close()
+
+
+def test_mark_review_normal(qapp: QApplication, ctx: dict[str, str]):
+    _set_app_context(ctx)
+
     from core.anomaly_review import create_anomaly_review
+    from core.field_session import create_field_session
     fs = create_field_session(
         project_id=ctx["project_id"],
         spec_id=ctx["spec_id"],
@@ -333,9 +411,9 @@ def test_mark_review_normal(qapp: QApplication, ctx: dict[str, str]):
 def test_confirm_defect_assigns_type(qapp: QApplication, ctx: dict[str, str]):
     _set_app_context(ctx)
 
-    from core.field_session import create_field_session
     from core.anomaly_review import create_anomaly_review
     from core.defect_dictionary import create_defect_type
+    from core.field_session import create_field_session
 
     fs = create_field_session(
         project_id=ctx["project_id"],
@@ -383,7 +461,7 @@ def test_confirm_defect_assigns_type(qapp: QApplication, ctx: dict[str, str]):
 def test_nav_item_registered(qapp: QApplication):
     from desktop_app.constants import NAV_ITEMS
     ids = [item["id"] for item in NAV_ITEMS]
-    assert "field_workflow" in ids
-    fw_item = next(item for item in NAV_ITEMS if item["id"] == "field_workflow")
+    assert "workbench" in ids
+    fw_item = next(item for item in NAV_ITEMS if item["id"] == "workbench")
     assert "label" in fw_item
     assert fw_item["icon"]

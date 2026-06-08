@@ -1,11 +1,20 @@
 """Real-time log viewer widget with auto-scroll."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 
 from desktop_app.i18n import tr, bind
+from desktop_app.theme_manager import ThemeManager
 from PySide6.QtGui import QFont, QTextCursor
-from PySide6.QtWidgets import QPlainTextEdit, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFileDialog
+from PySide6.QtWidgets import (
+    QPlainTextEdit,
+    QVBoxLayout,
+    QWidget,
+    QPushButton,
+    QHBoxLayout,
+    QFileDialog,
+)
 
 
 class LogViewer(QWidget):
@@ -16,6 +25,7 @@ class LogViewer(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._build_ui()
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -48,12 +58,13 @@ class LogViewer(QWidget):
         self._text.setReadOnly(True)
         font = QFont("Consolas", 10)
         self._text.setFont(font)
-        self._text.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #1E1E1E;
-                color: #D4D4D4;
-                border: 1px solid #3E3E3E;
-            }
+        c = ThemeManager.current()
+        self._text.setStyleSheet(f"""
+            QPlainTextEdit {{
+                background-color: {c.BG_INPUT};
+                color: {c.TEXT_PRIMARY};
+                border: 1px solid {c.BORDER};
+            }}
         """)
         layout.addWidget(self._text, 1)
 
@@ -95,3 +106,14 @@ class LogViewer(QWidget):
 
     def text(self) -> str:
         return self._text.toPlainText()
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._text.setStyleSheet(f"""
+            QPlainTextEdit {{
+                background-color: {c.BG_INPUT};
+                color: {c.TEXT_PRIMARY};
+                border: 1px solid {c.BORDER};
+            }}
+        """)

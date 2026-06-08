@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>相机工作台 — 页面结构预览</title>
+<style>
+  :root {
+    --primary: #0078D4;
+    --primary-light: #E8F4FD;
+    --success: #107C10;
+    --warning: #FF8C00;
+    --error: #C42B1C;
+    --bg-main: #F5F5F5;
+    --bg-panel: #FFFFFF;
+    --bg-input: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --border: #E0E0E0;
+    --border-focus: #0078D4;
+    --radius: 8px;
+    --radius-sm: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    padding: 20px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Scenario tabs ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    background: var(--bg-panel);
+    border-radius: var(--radius);
+    padding: 4px;
+    border: 1px solid var(--border);
+    max-width: 500px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab-btn.active {
+    background: var(--primary);
+    color: #fff;
+    font-weight: bold;
+  }
+  .tab-btn:hover:not(.active) {
+    background: var(--border);
+  }
+
+  /* ── Width simulator ── */
+  .width-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .width-bar span.label { margin-right: 4px; font-weight: bold; }
+  .width-btn {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-panel);
+    cursor: pointer;
+    font-size: 11px;
+    font-family: "Consolas", monospace;
+    color: var(--text-primary);
+  }
+  .width-btn.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); font-weight: bold; }
+
+  /* ── Page container ── */
+  .page {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-height: 700px;
+    transition: max-width 0.2s;
+  }
+
+  /* ── Top context bar ── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .ctx-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ctx-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .ctx-value {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text-primary);
+  }
+  .ctx-value.muted {
+    color: var(--text-secondary);
+    font-weight: normal;
+  }
+  .ctx-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .ctx-badge.ok { background: #E8F5E9; color: #2E7D32; }
+  .ctx-badge.warn { background: #FFF3E0; color: #E65100; }
+  .ctx-badge.empty { background: #F5F5F5; color: #999; }
+
+  /* ── Slot section (full width) ── */
+  .slot-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Section headers ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .section-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .section-title.grow { flex: 1; }
+  .scan-inline-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: bold;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 11px;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .scan-inline-btn:hover { background: #D0E8FA; }
+  .scan-result-hint {
+    font-size: 11px;
+    color: var(--success);
+    white-space: nowrap;
+  }
+
+  /* ── Discovery panel ── */
+  .adapter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .adapter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--bg-main);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+  .adapter-name {
+    font-weight: bold;
+    font-size: 11px;
+  }
+  .adapter-desc {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .adapter-desc.loaded { color: var(--success); }
+
+  .scan-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: bold;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    margin-bottom: 10px;
+    transition: background 0.15s;
+  }
+  .scan-btn:hover { background: #D0E8FA; }
+
+  .device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .device-item {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 11px;
+    transition: border-color 0.15s;
+  }
+  .device-item:hover { border-color: var(--primary); }
+  .device-item.selected { border-color: var(--primary); background: var(--primary-light); }
+  .device-sn { font-weight: bold; }
+  .device-meta { color: var(--text-secondary); font-size: 10px; margin-top: 2px; }
+
+  /* ── Slot cards ── */
+  .slot-grid {
+    display: grid;
+    gap: 10px;
+    max-width: 100%;
+  }
+  .slot-grid.cols-1 { grid-template-columns: 1fr; }
+  .slot-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .slot-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .slot-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+  .slot-card:hover { border-color: #BBB; }
+  .slot-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+  .slot-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .slot-name {
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .slot-role {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-main);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: text;
+    transition: background 0.15s;
+  }
+  .slot-role:hover { background: var(--border); }
+  .slot-role-input {
+    font-size: 11px;
+    width: 90px;
+    padding: 1px 6px;
+    border: 1px solid var(--primary);
+    border-radius: 4px;
+    outline: none;
+    font-family: inherit;
+    background: var(--bg-input);
+  }
+  .slot-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .slot-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .slot-label { color: var(--text-secondary); }
+  .slot-value { font-weight: bold; }
+  .slot-value.empty { color: #BBB; font-weight: normal; }
+  .slot-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .slot-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    background: var(--bg-panel);
+    transition: border-color 0.15s;
+  }
+  .slot-btn:hover { border-color: var(--primary); }
+  .slot-btn.danger { color: var(--error); border-color: var(--error); }
+  .slot-btn.danger:hover { background: #FFF0F0; }
+  .slot-status {
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .slot-status.configured { background: var(--success); }
+  .slot-status.bound { background: var(--warning); }
+  .slot-status.empty { background: #DDD; }
+
+  /* ── Parameter panel ── */
+  .param-panel {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .param-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 16px;
+    margin-bottom: 12px;
+  }
+  .param-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .param-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .param-input {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--bg-input);
+    font-family: "Consolas", "Lucida Console", monospace;
+  }
+  .param-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    border-bottom-width: 2px;
+  }
+  .param-input.wide { grid-column: span 2; }
+  .param-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .param-btn {
+    padding: 7px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.15s;
+  }
+  .param-btn.apply {
+    background: var(--warning);
+    color: #fff;
+  }
+  .param-btn.apply:hover { background: #E67E00; }
+  .param-btn.save {
+    background: var(--success);
+    color: #fff;
+  }
+  .param-btn.save:hover { background: #0D6B0D; }
+  .param-btn.load {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+  .param-btn.load:hover { border-color: #999; }
+
+  /* ── Preview + Diagnostics ── */
+  .bottom-row {
+    display: flex;
+    gap: 0;
+    min-height: 160px;
+  }
+  .preview-panel {
+    flex: 1;
+    padding: 16px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .preview-placeholder {
+    width: 280px;
+    height: 120px;
+    background: var(--bg-main);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .preview-controls {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .preview-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-panel);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .diag-panel {
+    width: 260px;
+    flex-shrink: 0;
+    padding: 16px;
+    font-size: 11px;
+    overflow-y: auto;
+  }
+  .diag-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #F0F0F0;
+  }
+  .diag-label { color: var(--text-secondary); }
+  .diag-value { font-weight: bold; font-family: "Consolas", "Lucida Console", monospace; }
+  .diag-value.ok { color: var(--success); }
+  .diag-value.warn { color: var(--warning); }
+  .diag-value.err { color: var(--error); }
+
+  /* ── Empty state ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-align: center;
+  }
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  /* ── Modal dialog ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-dialog {
+    width: 440px;
+    max-height: 520px;
+    background: var(--bg-panel);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    font-weight: bold;
+    font-size: 14px;
+  }
+  .modal-close {
+    width: 28px; height: 28px;
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    line-height: 1;
+  }
+  .modal-close:hover { background: var(--bg-main); }
+  .modal-body {
+    flex: 1;
+    padding: 16px 18px;
+    overflow-y: auto;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .modal-btn {
+    padding: 7px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .modal-btn.primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .modal-btn.primary:hover { background: #106EBE; }
+  .modal-btn.cancel {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+  .modal-btn.cancel:hover { border-color: #999; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showScenario('configured')">场景一：已配置 (3 相机)</button>
+  <button class="tab-btn" onclick="showScenario('partial')">场景二：部分绑定 (3 相机)</button>
+  <button class="tab-btn" onclick="showScenario('six')">场景三：6 相机</button>
+  <button class="tab-btn" onclick="showScenario('empty')">场景四：空状态</button>
+</div>
+
+<div class="width-bar">
+  <span class="label">容器宽度:</span>
+  <button class="width-btn" onclick="setPageWidth(900)">900px</button>
+  <button class="width-btn active" onclick="setPageWidth(1100)">1100px</button>
+  <button class="width-btn" onclick="setPageWidth('100%')">全宽</button>
+  <span style="margin-left:8px;font-size:10px">模拟窗口大小变化</span>
+</div>
+
+<div class="page" id="page" style="max-width:1100px"></div>
+
+<div id="bindOverlay" class="modal-overlay hidden"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div> 已配置 (camera_configs)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div> 已绑定但未保存</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#DDD"></div> 未绑定</div>
+</div>
+
+<script>
+/* ── Scenario data ── */
+const scenarios = {
+  configured: {
+    ctx: {
+      customer: "宝钢股份",
+      project: "钢管表面缺陷检测一期",
+      spec: "Tube-25mm (铜/管)",
+      cameraCount: 3,
+      configuredCount: 3,
+    },
+    adapters: [
+      { name: "folder_watcher", desc: "可用" },
+      { name: "hikrobot_line_scan", desc: "SDK v2.3.1" },
+      { name: "basler_pylon", desc: "未安装" },
+    ],
+    devices: [
+      { sn: "HK-A7B3012", model: "MV-CL042-91CM", ip: "192.168.10.11", vendor: "Hikrobot" },
+      { sn: "HK-A7B3013", model: "MV-CL042-91CM", ip: "192.168.10.12", vendor: "Hikrobot" },
+      { sn: "HK-A7B3014", model: "MV-CL042-91CM", ip: "192.168.10.13", vendor: "Hikrobot" },
+    ],
+    selectedDevice: 0,
+    _scanned: true,
+    slots: [
+      {
+        name: "camera_01", role: "上方 Top", enabled: true,
+        bound: { sn: "HK-A7B3012", ip: "192.168.10.11", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5000, gain: 1.2, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_02", role: "左侧 Left", enabled: true,
+        bound: { sn: "HK-A7B3013", ip: "192.168.10.12", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 4800, gain: 1.0, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_03", role: "右侧 Right", enabled: true,
+        bound: { sn: "HK-A7B3014", ip: "192.168.10.13", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5200, gain: 1.3, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      }
+    ],
+    selectedSlot: 0,
+    diag: { connected: true, lineRate: "17998.3", receivedLines: "524,800", lostLines: 3, timeouts: 0, lastError: "—" },
+  },
+
+  partial: {
+    ctx: {
+      customer: "宝钢股份",
+      project: "钢管表面缺陷检测一期",
+      spec: "Tube-25mm (铜/管)",
+      cameraCount: 3,
+      configuredCount: 1,
+    },
+    adapters: [
+      { name: "folder_watcher", desc: "可用" },
+      { name: "hikrobot_line_scan", desc: "SDK v2.3.1" },
+      { name: "basler_pylon", desc: "未安装" },
+    ],
+    devices: [
+      { sn: "HK-A7B3012", model: "MV-CL042-91CM", ip: "192.168.10.11", vendor: "Hikrobot" },
+    ],
+    selectedDevice: 0,
+    _scanned: true,
+    slots: [
+      {
+        name: "camera_01", role: "上方 Top", enabled: true,
+        bound: { sn: "HK-A7B3012", ip: "192.168.10.11", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5000, gain: 1.2, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_02", role: "左侧 Left", enabled: true,
+        bound: null,
+        status: "empty",
+        params: { exposure: "—", gain: "—", trigger: "—", rowRate: "—", blockHeight: "—", pixelFormat: "—", roi: "—" }
+      },
+      {
+        name: "camera_03", role: "右侧 Right", enabled: false,
+        bound: null,
+        status: "empty",
+        params: { exposure: "—", gain: "—", trigger: "—", rowRate: "—", blockHeight: "—", pixelFormat: "—", roi: "—" }
+      }
+    ],
+    selectedSlot: 0,
+    diag: { connected: true, lineRate: "17998.3", receivedLines: "524,800", lostLines: 3, timeouts: 0, lastError: "—" },
+  },
+
+  six: {
+    ctx: {
+      customer: "海螺水泥",
+      project: "传送带表面缺陷检测",
+      spec: "Belt-1200mm (钢/面)",
+      cameraCount: 6,
+      configuredCount: 4,
+    },
+    adapters: [
+      { name: "folder_watcher", desc: "可用" },
+      { name: "hikrobot_line_scan", desc: "SDK v2.3.1" },
+      { name: "basler_pylon", desc: "未安装" },
+    ],
+    devices: [
+      { sn: "HK-B101", model: "MV-CL042-91CM", ip: "192.168.10.21", vendor: "Hikrobot" },
+      { sn: "HK-B102", model: "MV-CL042-91CM", ip: "192.168.10.22", vendor: "Hikrobot" },
+      { sn: "HK-B103", model: "MV-CL042-91CM", ip: "192.168.10.23", vendor: "Hikrobot" },
+      { sn: "HK-B104", model: "MV-CL042-91CM", ip: "192.168.10.24", vendor: "Hikrobot" },
+      { sn: "HK-B105", model: "MV-CL042-91CM", ip: "192.168.10.25", vendor: "Hikrobot" },
+      { sn: "HK-B106", model: "MV-CL042-91CM", ip: "192.168.10.26", vendor: "Hikrobot" },
+    ],
+    selectedDevice: 3,
+    _scanned: true,
+    slots: [
+      {
+        name: "camera_01", role: "上方 Top", enabled: true,
+        bound: { sn: "HK-B101", ip: "192.168.10.21", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5000, gain: 1.2, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_02", role: "下方 Bottom", enabled: true,
+        bound: { sn: "HK-B102", ip: "192.168.10.22", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 4800, gain: 1.0, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_03", role: "左侧 Left", enabled: true,
+        bound: { sn: "HK-B103", ip: "192.168.10.23", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5200, gain: 1.3, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_04", role: "右侧 Right", enabled: true,
+        bound: { sn: "HK-B104", ip: "192.168.10.24", model: "MV-CL042-91CM" },
+        status: "configured",
+        params: { exposure: 5100, gain: 1.1, trigger: "LineStart", rowRate: 18000, blockHeight: 128, pixelFormat: "Mono8", roi: "0,0,4096,128" }
+      },
+      {
+        name: "camera_05", role: "备用 Spare 1", enabled: false,
+        bound: null,
+        status: "empty",
+        params: { exposure: "—", gain: "—", trigger: "—", rowRate: "—", blockHeight: "—", pixelFormat: "—", roi: "—" }
+      },
+      {
+        name: "camera_06", role: "备用 Spare 2", enabled: false,
+        bound: null,
+        status: "empty",
+        params: { exposure: "—", gain: "—", trigger: "—", rowRate: "—", blockHeight: "—", pixelFormat: "—", roi: "—" }
+      },
+    ],
+    selectedSlot: 3,
+    diag: { connected: true, lineRate: "17998.3", receivedLines: "1,024,000", lostLines: 5, timeouts: 1, lastError: "Camera #4: frame timeout" },
+  },
+
+  empty: {
+    ctx: {
+      customer: "宝钢股份",
+      project: "钢管表面缺陷检测一期",
+      spec: null,
+      cameraCount: null,
+      configuredCount: null,
+    },
+    adapters: [
+      { name: "folder_watcher", desc: "可用" },
+      { name: "hikrobot_line_scan", desc: "SDK v2.3.1" },
+      { name: "basler_pylon", desc: "未安装" },
+    ],
+    devices: [],
+    _scanned: false,
+    selectedDevice: -1,
+    slots: [],
+    selectedSlot: -1,
+    diag: null,
+  }
+};
+
+/* ── Render ── */
+function render(scenario) {
+  const s = scenarios[scenario];
+  const isSlotSelected = (idx) => s.selectedSlot === idx;
+
+  const ctxBadge = () => {
+    if (s.ctx.spec == null) return '<span class="ctx-badge empty">未选择规格</span>';
+    const ratio = s.ctx.configuredCount + '/' + s.ctx.cameraCount;
+    const cls = s.ctx.configuredCount === s.ctx.cameraCount ? 'ok' : 'warn';
+    return '<span class="ctx-badge ' + cls + '">已配置 ' + ratio + '</span>';
+  };
+
+  const stDot = (status) => {
+    if (status === 'configured') return '<div class="slot-status configured"></div>';
+    if (status === 'bound') return '<div class="slot-status bound"></div>';
+    return '<div class="slot-status empty"></div>';
+  };
+
+  const boundText = (slot) => {
+    if (!slot.bound) return '<span class="slot-value empty">—</span>';
+    return '<span class="slot-value">' + slot.bound.sn + '</span>';
+  };
+
+  const slotCard = (slot, idx) => `
+    <div class="slot-card ${isSlotSelected(idx) ? 'selected' : ''}" onclick="selectSlot('${scenario}', ${idx})">
+      ${stDot(slot.status)}
+      <div class="slot-header">
+        <span class="slot-name">${slot.name}</span>
+        <span class="slot-role" onclick="editRole(event, '${scenario}', ${idx})" title="点击编辑位置">${slot.enabled ? slot.role : '已禁用'}</span>
+      </div>
+      <div class="slot-body">
+        <div class="slot-row">
+          <span class="slot-label">绑定设备</span>
+          ${boundText(slot)}
+        </div>
+        <div class="slot-row">
+          <span class="slot-label">状态</span>
+          <span class="slot-value ${slot.status === 'empty' ? 'empty' : ''}">${slot.status === 'configured' ? '已配置' : slot.status === 'bound' ? '已绑定' : '未绑定'}</span>
+        </div>
+      </div>
+      <div class="slot-actions">
+        <span class="slot-btn" onclick="openBindDialog(event, '${scenario}', ${idx})" title="扫描并绑定设备">绑定设备</span>
+        <span class="slot-btn" title="解绑">解绑</span>
+        <span class="slot-btn" title="连接">连接</span>
+        ${slot.enabled ? '<span class="slot-btn danger">禁用</span>' : '<span class="slot-btn">启用</span>'}
+      </div>
+    </div>`;
+
+  const params = s.selectedSlot >= 0 ? s.slots[s.selectedSlot].params : null;
+
+  const diagHtml = s.diag ? `
+    <div class="diag-row"><span class="diag-label">连接状态</span><span class="diag-value ${s.diag.connected ? 'ok' : 'err'}">${s.diag.connected ? '已连接' : '断开'}</span></div>
+    <div class="diag-row"><span class="diag-label">行频</span><span class="diag-value ok">${s.diag.lineRate} Hz</span></div>
+    <div class="diag-row"><span class="diag-label">已收行数</span><span class="diag-value">${s.diag.receivedLines}</span></div>
+    <div class="diag-row"><span class="diag-label">丢行数</span><span class="diag-value ${s.diag.lostLines > 0 ? 'warn' : 'ok'}">${s.diag.lostLines}</span></div>
+    <div class="diag-row"><span class="diag-label">超时次数</span><span class="diag-value ok">${s.diag.timeouts}</span></div>
+    <div class="diag-row"><span class="diag-label">最后错误</span><span class="diag-value ok">${s.diag.lastError}</span></div>
+  ` : '';
+
+  const emptyPage = scenario === 'empty';
+
+  return `
+    <!-- Top context bar -->
+    <div class="top-bar">
+      <div class="ctx-item"><span class="ctx-label">客户</span><span class="ctx-value">${s.ctx.customer}</span></div>
+      <div class="ctx-item"><span class="ctx-label">项目</span><span class="ctx-value">${s.ctx.project}</span></div>
+      <div class="ctx-item"><span class="ctx-label">产品规格</span><span class="ctx-value ${s.ctx.spec ? '' : 'muted'}">${s.ctx.spec || '— 未选择 —'}</span></div>
+      <div class="ctx-item"><span class="ctx-label">规格相机数量</span><span class="ctx-value">${s.ctx.cameraCount ?? '—'}</span></div>
+      <div style="margin-left:auto">${ctxBadge()}</div>
+    </div>
+
+    ${emptyPage ? `
+    <div class="empty-state">
+      <div class="empty-icon">📷</div>
+      <div>请先在项目配置中选择客户、项目和产品规格。</div>
+      <div style="font-size:12px;margin-top:4px;">选择规格后，系统将根据 camera_count 自动生成相机槽位。</div>
+    </div>
+    ` : `
+    <!-- Slot grid (full width) -->
+    <div class="slot-section">
+      <div class="section-header">
+        <span class="section-title grow">规格相机槽位 (${s.slots.length})</span>
+        <button class="scan-inline-btn" onclick="scanDevicesMain(event, '${scenario}')">🔍 扫描设备</button>
+        ${s._scanned && s.devices.length > 0 ? `<span class="scan-result-hint">已发现 ${s.devices.length} 台</span>` : ''}
+      </div>
+      <div class="slot-grid cols-${Math.min(s.slots.length, 3)}">
+        ${s.slots.map((slot, i) => slotCard(slot, i)).join('')}
+      </div>
+    </div>
+
+    <!-- Parameters grid -->
+    <div class="param-panel">
+      <div class="section-title">当前槽位参数 — ${s.selectedSlot >= 0 ? s.slots[s.selectedSlot].name + ' · ' + s.slots[s.selectedSlot].role : '未选择'}</div>
+      ${params && s.selectedSlot >= 0 ? `
+      <div class="param-grid">
+        <div class="param-group"><span class="param-label">曝光 (μs)</span><input class="param-input" value="${params.exposure}" readonly></div>
+        <div class="param-group"><span class="param-label">增益</span><input class="param-input" value="${params.gain}" readonly></div>
+        <div class="param-group"><span class="param-label">触发模式</span><input class="param-input" value="${params.trigger}" readonly></div>
+        <div class="param-group"><span class="param-label">行频 (Hz)</span><input class="param-input" value="${params.rowRate}" readonly></div>
+        <div class="param-group"><span class="param-label">图像块高度</span><input class="param-input" value="${params.blockHeight}" readonly></div>
+        <div class="param-group"><span class="param-label">像素格式</span><input class="param-input" value="${params.pixelFormat}" readonly></div>
+        <div class="param-group"><span class="param-label">ROI</span><input class="param-input" value="${params.roi}" readonly></div>
+        <div class="param-group"><span class="param-label">触发源</span><input class="param-input" value="Line0" readonly></div>
+        <div class="param-group"><span class="param-label">相机类型</span><input class="param-input" value="line_scan" readonly></div>
+      </div>
+      <div class="param-actions">
+        <button class="param-btn apply">应用到相机</button>
+        <button class="param-btn save">保存到当前规格</button>
+        <button class="param-btn load">从规格加载</button>
+        <button class="param-btn load">全部连接</button>
+      </div>
+      ` : '<div style="color:var(--text-secondary);font-size:12px;padding:8px 0">点击上方相机槽位查看和编辑参数</div>'}
+    </div>
+
+    <!-- Preview + Diagnostics -->
+    <div class="bottom-row">
+      <div class="preview-panel">
+        <div class="section-title" style="width:100%">实时预览</div>
+        <div class="preview-placeholder">
+          ${s.selectedSlot >= 0 ? '当前槽位: ' + s.slots[s.selectedSlot].name + ' — 点击开始预览' : '选择槽位后开始预览'}
+        </div>
+        <div class="preview-controls">
+          <span class="preview-btn">▶ 开始预览</span>
+          <span class="preview-btn">📸 快照</span>
+          <span class="preview-btn">⏹ 停止</span>
+        </div>
+      </div>
+      <div class="diag-panel">
+        <div class="section-title">诊断</div>
+        ${diagHtml || '<div style="color:var(--text-secondary);font-size:12px;padding:20px;text-align:center">未选择产品规格</div>'}
+      </div>
+    </div>
+    `}
+  `;
+}
+
+/* ── Navigation ── */
+let currentScenario = 'configured';
+
+function showScenario(name) {
+  currentScenario = name;
+  const labelMap = { configured: '场景一', partial: '场景二', six: '场景三', empty: '场景四' };
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.includes(labelMap[name] || ''));
+  });
+  document.getElementById('page').innerHTML = render(name);
+}
+
+function selectSlot(scenario, idx) {
+  scenarios[scenario].selectedSlot = idx;
+  if (scenario === currentScenario) {
+    document.getElementById('page').innerHTML = render(scenario);
+  }
+}
+
+function editRole(event, scenario, idx) {
+  event.stopPropagation();
+  const span = event.target;
+  const current = scenarios[scenario].slots[idx].role;
+  const input = document.createElement('input');
+  input.className = 'slot-role-input';
+  input.value = current;
+  input.onblur = () => {
+    const v = input.value.trim();
+    if (v && v !== current) {
+      scenarios[scenario].slots[idx].role = v;
+      document.getElementById('page').innerHTML = render(scenario);
+    } else {
+      span.style.display = '';
+      input.remove();
+    }
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { span.style.display = ''; input.remove(); }
+  };
+  span.style.display = 'none';
+  span.parentNode.insertBefore(input, span);
+  input.focus();
+  input.select();
+}
+
+function selectDevice(scenario, idx) {
+  scenarios[scenario].selectedDevice = idx;
+  if (scenario === currentScenario) {
+    document.getElementById('page').innerHTML = render(scenario);
+  }
+}
+
+/* ── Main page scan ── */
+function scanDevicesMain(event, scenario) {
+  event.stopPropagation();
+  // Simulate: populate devices from the scenario's own device list
+  const s = scenarios[scenario];
+  if (!s._scanned) {
+    s._scanned = true;
+    // In real app this would call sdk_loader + enumerate_devices()
+    // Here we just use the pre-defined devices array
+  }
+  if (scenario === currentScenario) {
+    document.getElementById('page').innerHTML = render(scenario);
+  }
+}
+
+/* ── Bind dialog ── */
+let bindDialog = { open: false, scenario: null, slotIdx: null, selectedDevice: -1, scanned: false };
+
+function openBindDialog(event, scenario, slotIdx) {
+  event.stopPropagation();
+  const s = scenarios[scenario];
+  bindDialog = { open: true, scenario, slotIdx, selectedDevice: -1, scanned: s._scanned || false };
+  const ov = document.getElementById('bindOverlay');
+  ov.classList.remove('hidden');
+  ov.onclick = closeBindDialog;
+  renderBindDialog();
+}
+
+function closeBindDialog() {
+  bindDialog.open = false;
+  const ov = document.getElementById('bindOverlay');
+  ov.classList.add('hidden');
+  ov.onclick = null;
+}
+
+function scanInDialog() {
+  bindDialog.scanned = true;
+  bindDialog.selectedDevice = -1;
+  scenarios[bindDialog.scenario]._scanned = true;
+  renderBindDialog();
+}
+
+function selectDeviceInDialog(idx) {
+  bindDialog.selectedDevice = idx;
+  renderBindDialog();
+}
+
+function confirmBind() {
+  const { scenario, slotIdx, selectedDevice } = bindDialog;
+  if (selectedDevice < 0) return;
+  const dev = scenarios[scenario].devices[selectedDevice];
+  if (!dev) return;
+  scenarios[scenario].slots[slotIdx].bound = { sn: dev.sn, ip: dev.ip, model: dev.model };
+  scenarios[scenario].slots[slotIdx].status = 'bound';
+  scenarios[scenario].selectedSlot = slotIdx;
+  closeBindDialog();
+  if (scenario === currentScenario) {
+    document.getElementById('page').innerHTML = render(scenario);
+  }
+}
+
+function renderBindDialog() {
+  const s = scenarios[bindDialog.scenario];
+  const slot = s.slots[bindDialog.slotIdx];
+  const devs = bindDialog.scanned ? s.devices : [];
+  document.getElementById('bindOverlay').innerHTML = `
+    <div class="modal-dialog" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span>绑定设备 → ${slot.name} · ${slot.role}</span>
+        <button class="modal-close" onclick="closeBindDialog()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-title">已注册适配器</div>
+        <div class="adapter-list">
+          ${s.adapters.map(a => `
+            <div class="adapter-row">
+              <span class="adapter-name">${a.name}</span>
+              <span class="adapter-desc ${a.desc.startsWith('SDK') ? 'loaded' : ''}">${a.desc}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <button class="scan-btn" onclick="scanInDialog()" style="margin-bottom:12px">🔍 扫描设备</button>
+
+        ${bindDialog.scanned ? `
+        <div class="section-title">已发现设备 (${devs.length})</div>
+        <div class="device-list" style="max-height:200px">
+          ${devs.map((d, i) => `
+            <div class="device-item ${bindDialog.selectedDevice === i ? 'selected' : ''}" onclick="selectDeviceInDialog(${i})">
+              <div class="device-sn">${d.sn}</div>
+              <div class="device-meta">${d.model} · ${d.ip} · ${d.vendor}</div>
+            </div>
+          `).join('')}
+          ${devs.length === 0 ? '<div style="color:var(--text-secondary);font-size:12px;padding:12px;text-align:center">未发现设备</div>' : ''}
+        </div>
+        ` : '<div style="color:var(--text-secondary);font-size:12px;padding:12px 0">点击扫描按钮搜索在线设备</div>'}
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn cancel" onclick="closeBindDialog()">取消</button>
+        <button class="modal-btn primary" onclick="confirmBind()" ${bindDialog.selectedDevice < 0 ? 'disabled style="opacity:0.5;cursor:default"' : ''}>确认绑定</button>
+      </div>
+    </div>`;
+}
+
+/* ── Width simulator ── */
+function setPageWidth(w) {
+  document.querySelectorAll('.width-btn').forEach(b => b.classList.remove('active'));
+  const val = typeof w === 'number' ? w + 'px' : w;
+  document.getElementById('page').style.maxWidth = val;
+  // Highlight matching button
+  document.querySelectorAll('.width-btn').forEach(b => {
+    if (b.textContent === val || (w === '100%' && b.textContent === '全宽')) {
+      b.classList.add('active');
+    }
+  });
+}
+
+// Initial render
+document.getElementById('page').innerHTML = render('configured');
+</script>
+</body>
+</html>

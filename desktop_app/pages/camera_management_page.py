@@ -1,19 +1,43 @@
-"""Camera management page — discovery, binding, parameters, preview, diagnostics."""
+"""Camera management page — discovery, binding, parameters, preview, diagnostics.
+
+.. deprecated::
+    Superseded by CameraWorkbenchPage in the device_setup container
+    (MainWindow._device_tabs). No longer registered as a standalone
+    navigation entry. Kept for reference; remove after 2026-Q3 if no
+    downstream consumers are found.
+"""
+
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout, QGridLayout,
-    QPushButton, QLabel, QComboBox, QDoubleSpinBox, QSpinBox, QCheckBox,
-    QTextEdit, QMessageBox, QFrame, QScrollArea, QSplitter,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QGroupBox,
+    QPushButton,
+    QLabel,
+    QComboBox,
+    QDoubleSpinBox,
+    QSpinBox,
+    QCheckBox,
+    QTextEdit,
+    QMessageBox,
+    QSplitter,
+    QAbstractItemView,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
 
 from src.device.camera.binding_store import BindingStore, CameraBinding, SLOT_IDS
@@ -23,6 +47,13 @@ from src.device.camera.line_scan.interface import LineScanDevice
 from src.device.camera.line_scan.types import DeviceInfo, FramePacket
 from src.device.camera.param_templates import CameraParams, ParamTemplateManager
 from desktop_app.i18n import tr, I18nManager
+from desktop_app.theme_manager import ThemeManager
+from camera_adapters.folder_watcher import FolderWatcherCameraAdapter
+from camera_adapters.basler_pylon import BaslerPylonAdapter
+
+# Deprecation markers — kept as module constants to avoid E402
+_DEPRECATED: bool = True
+_DEPRECATED_REPLACEMENT: str = "CameraWorkbenchPage in device_setup"
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +62,19 @@ _PARAM_FLOAT_NAMES = {"ExposureTime", "Gain"}
 _PARAM_INT_NAMES = {"Width", "Height", "LineRate", "PayloadSize", "OffsetX", "OffsetY"}
 _PARAM_BOOL_NAMES = {"ReverseX", "ReverseY"}
 _PARAM_ENUM_NAMES = {"TriggerMode", "TriggerSource", "PixelFormat", "AcquisitionMode"}
+
+
+@dataclass(frozen=True)
+class _AdapterDisplayRow:
+    name: str
+    adapter_type: str
+    status: str
+    devices: str
+
+
+class _CameraAdapterStatus(Protocol):
+    def list_devices(self) -> list[dict[str, Any]]:
+        """Return displayable devices for the adapter table."""
 
 
 class CameraManagementPage(QWidget):
@@ -59,6 +103,7 @@ class CameraManagementPage(QWidget):
         self._load_bindings()
 
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # UI Construction
@@ -68,6 +113,10 @@ class CameraManagementPage(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(8)
+
+        # ── Section 0: Registered Adapters ──
+        self._build_adapter_section()
+        outer.addWidget(self._adapter_group)
 
         # ── Section 1: Discovery & Binding ──
         self._build_discovery_section()
@@ -91,81 +140,246 @@ class CameraManagementPage(QWidget):
     # Discovery & Binding Section
     # ------------------------------------------------------------------
 
-    def _build_discovery_section(self) -> None:
-        self._discovery_group = QGroupBox("相机发现与绑定")
-        layout = QVBoxLayout(self._discovery_group)
+    def _build_adapter_section(self) -> None:
+        self._adapter_group = QGroupBox(tr("camera_mgmt.adapter_group"))
+        layout = QVBoxLayout(self._adapter_group)
+        self._adapter_table = QTableWidget(0, 4)
+        self._adapter_table.setHorizontalHeaderLabels(
+            [
+                tr("device.col_adapter"),
+                tr("device.col_type"),
+                tr("device.col_status"),
+                tr("device.col_devices"),
+            ]
+        )
+        self._adapter_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._adapter_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._adapter_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._adapter_table.setWordWrap(False)
+        self._adapter_table.verticalHeader().setVisible(False)
+        self._adapter_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._adapter_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        header = self._adapter_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self._adapter_table)
+        self._refresh_adapters()
 
-        # Scan row
+    def _refresh_adapters(self) -> None:
+        rows = [
+            self._adapter_row(FolderWatcherCameraAdapter(), "Folder Watcher", "folder_watcher"),
+            self._hikrobot_line_scan_row(),
+            self._adapter_row(BaslerPylonAdapter(), "Basler Pylon", "basler_pylon"),
+        ]
+        self._adapter_table.setRowCount(len(rows))
+        for row, adapter in enumerate(rows):
+            self._adapter_table.setItem(row, 0, QTableWidgetItem(adapter.name))
+            self._adapter_table.setItem(row, 1, QTableWidgetItem(adapter.adapter_type))
+            self._adapter_table.setItem(row, 2, QTableWidgetItem(adapter.status))
+            self._adapter_table.setItem(row, 3, QTableWidgetItem(adapter.devices))
+        self._resize_adapter_table()
+
+    def _adapter_row(
+        self,
+        adapter: _CameraAdapterStatus,
+        display_name: str,
+        adapter_type: str,
+    ) -> _AdapterDisplayRow:
+        try:
+            devices = adapter.list_devices()
+        except NotImplementedError:
+            return _AdapterDisplayRow(
+                display_name,
+                adapter_type,
+                tr("device.sdk_missing"),
+                "-",
+            )
+        except Exception as exc:
+            logger.exception("Camera adapter status failed: %s", adapter_type)
+            return _AdapterDisplayRow(
+                display_name,
+                adapter_type,
+                tr("device.status_error"),
+                str(exc),
+            )
+
+        return _AdapterDisplayRow(
+            display_name,
+            adapter_type,
+            tr("device.ready", count=len(devices)) if devices else tr("device.no_devices"),
+            self._format_adapter_devices(devices),
+        )
+
+    def _hikrobot_line_scan_row(self) -> _AdapterDisplayRow:
+        display_name = "Hikrobot Line Scan (MVS)"
+        adapter_type = "hikrobot_line_scan"
+        if not sdk_loader.load_sdk():
+            return _AdapterDisplayRow(
+                display_name,
+                adapter_type,
+                tr("device.sdk_missing"),
+                sdk_loader.SDK_ERROR or "-",
+            )
+
+        try:
+            devices = HikrobotLineScanCamera.enumerate_devices()
+        except Exception as exc:
+            logger.exception("Hikrobot line scan enumeration failed")
+            return _AdapterDisplayRow(
+                display_name,
+                adapter_type,
+                tr("device.status_error"),
+                str(exc),
+            )
+
+        return _AdapterDisplayRow(
+            display_name,
+            adapter_type,
+            tr("device.ready", count=len(devices)) if devices else tr("device.no_devices"),
+            self._format_line_scan_devices(devices),
+        )
+
+    def _format_adapter_devices(self, devices: list[dict[str, Any]]) -> str:
+        names = [
+            str(device.get("name") or device.get("id") or "").strip()
+            for device in devices
+        ]
+        names = [name for name in names if name]
+        return ", ".join(names) if names else "-"
+
+    def _format_line_scan_devices(self, devices: list[DeviceInfo]) -> str:
+        labels: list[str] = []
+        for device in devices:
+            parts = [
+                device.serial_number,
+                device.model,
+                device.ip_address,
+            ]
+            label = " / ".join(part for part in parts if part)
+            if device.user_defined_name:
+                label = f"{label} ({device.user_defined_name})" if label else device.user_defined_name
+            if label:
+                labels.append(label)
+        return ", ".join(labels) if labels else "-"
+
+    def _resize_adapter_table(self) -> None:
+        self._adapter_table.resizeRowsToContents()
+        height = (
+            self._adapter_table.horizontalHeader().height()
+            + sum(self._adapter_table.rowHeight(row) for row in range(self._adapter_table.rowCount()))
+            + self._adapter_table.frameWidth() * 2
+            + 6
+        )
+        self._adapter_table.setMinimumHeight(height)
+        self._adapter_table.setMaximumHeight(height)
+
+    def _build_discovery_section(self) -> None:
+        self._discovery_group = QGroupBox(tr("camera_mgmt.discovery_group"))
+        layout = QVBoxLayout(self._discovery_group)
+        layout.setContentsMargins(12, 16, 12, 12)
+        layout.setSpacing(10)
+
         scan_row = QHBoxLayout()
-        self._scan_btn = QPushButton("扫描设备")
+        scan_row.setSpacing(10)
+        self._scan_btn = QPushButton(tr("camera.scan"))
         self._scan_btn.clicked.connect(self._on_scan)
+        self._scan_btn.setMinimumWidth(112)
         scan_row.addWidget(self._scan_btn)
-        self._sdk_label = QLabel("SDK: 未检测")
-        self._sdk_label.setStyleSheet("color: #888;")
+        self._sdk_label = QLabel(tr("commissioning.sdk_not_detected"))
+        self._sdk_label.setObjectName("secondaryLabel")
         scan_row.addWidget(self._sdk_label)
         scan_row.addStretch()
         layout.addLayout(scan_row)
 
-        # Device list
         self._device_list = QTextEdit()
         self._device_list.setReadOnly(True)
-        self._device_list.setMaximumHeight(90)
-        self._device_list.setStyleSheet("background-color: #1E1E1E; color: #CCC; font-size: 12px;")
+        self._device_list.setMinimumHeight(64)
+        self._device_list.setMaximumHeight(92)
+        c = ThemeManager.current()
+        self._device_list.setStyleSheet(
+            f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY}; font-size: 12px;"
+        )
         layout.addWidget(self._device_list)
 
-        device_row = QHBoxLayout()
-        device_row.addWidget(QLabel("设备:"))
+        self._discovery_grid = QGridLayout()
+        self._discovery_grid.setHorizontalSpacing(10)
+        self._discovery_grid.setVerticalSpacing(8)
+        self._discovery_grid.setColumnStretch(1, 3)
+        self._discovery_grid.setColumnStretch(3, 1)
+        self._discovery_grid.setColumnStretch(5, 2)
+
+        device_label = QLabel(tr("camera_mgmt.device_label"))
+        device_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._device_combo = QComboBox()
         self._device_combo.setMinimumWidth(360)
-        device_row.addWidget(self._device_combo, 1)
-        layout.addLayout(device_row)
+        self._discovery_grid.addWidget(device_label, 0, 0)
+        self._discovery_grid.addWidget(self._device_combo, 0, 1, 1, 5)
 
-        # Binding row
-        bind_row = QHBoxLayout()
-        bind_row.addWidget(QLabel("槽位:"))
+        slot_label = QLabel(tr("camera_mgmt.slot_label"))
+        slot_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._slot_combo = QComboBox()
         self._slot_combo.addItems(SLOT_IDS)
         self._slot_combo.currentTextChanged.connect(self._on_slot_changed)
-        bind_row.addWidget(self._slot_combo)
+        self._slot_combo.setMinimumWidth(120)
+        self._discovery_grid.addWidget(slot_label, 1, 0)
+        self._discovery_grid.addWidget(self._slot_combo, 1, 1)
 
-        bind_row.addWidget(QLabel("角色:"))
+        role_label = QLabel(tr("camera_mgmt.role_label"))
+        role_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._role_combo = QComboBox()
-        self._role_combo.addItems(["上方", "左侧", "右侧", "备用"])
-        bind_row.addWidget(self._role_combo)
+        self._role_combo.addItems(
+            [
+                tr("camera_mgmt.role_top"),
+                tr("camera_mgmt.role_left"),
+                tr("camera_mgmt.role_right"),
+                tr("camera_mgmt.role_spare"),
+            ]
+        )
+        self._role_combo.setMinimumWidth(112)
+        self._discovery_grid.addWidget(role_label, 1, 2)
+        self._discovery_grid.addWidget(self._role_combo, 1, 3)
 
-        self._bind_btn = QPushButton("绑定并连接")
+        self._bind_btn = QPushButton(tr("camera.bind_connect"))
         self._bind_btn.clicked.connect(self._on_bind_connect)
         self._bind_btn.setObjectName("primaryBtn")
-        bind_row.addWidget(self._bind_btn)
+        self._bind_btn.setMinimumWidth(128)
+        self._discovery_grid.addWidget(self._bind_btn, 1, 4)
 
-        self._unbind_btn = QPushButton("解绑")
+        self._unbind_btn = QPushButton(tr("camera.unbind"))
         self._unbind_btn.clicked.connect(self._on_unbind)
         self._unbind_btn.setEnabled(False)
-        bind_row.addWidget(self._unbind_btn)
-        bind_row.addStretch()
-        layout.addLayout(bind_row)
+        self._unbind_btn.setMinimumWidth(88)
+        self._discovery_grid.addWidget(self._unbind_btn, 1, 5)
+        layout.addLayout(self._discovery_grid)
 
-        # Multi-slot status bar
         self._slot_status_labels: dict[str, QLabel] = {}
-        status_row = QHBoxLayout()
-        for sid in SLOT_IDS:
+        self._slot_status_grid = QGridLayout()
+        self._slot_status_grid.setHorizontalSpacing(14)
+        self._slot_status_grid.setVerticalSpacing(4)
+        for index, sid in enumerate(SLOT_IDS):
             lbl = QLabel(self._slot_display(sid))
-            lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #888;")
+            c = ThemeManager.current()
+            lbl.setStyleSheet(f"font-size: 11px; padding: 2px 6px; color: {c.TEXT_SECONDARY};")
+            lbl.setMinimumWidth(150)
             self._slot_status_labels[sid] = lbl
-            status_row.addWidget(lbl)
-        status_row.addStretch()
-        layout.addLayout(status_row)
+            self._slot_status_grid.addWidget(lbl, index // 3, index % 3)
+        layout.addLayout(self._slot_status_grid)
 
-        # Global action buttons
         action_row = QHBoxLayout()
-        self._connect_all_btn = QPushButton("全部连接")
+        action_row.setSpacing(8)
+        self._connect_all_btn = QPushButton(tr("camera.connect_all"))
         self._connect_all_btn.clicked.connect(self._on_connect_all)
+        self._connect_all_btn.setMinimumWidth(112)
         action_row.addWidget(self._connect_all_btn)
-        self._disconnect_all_btn = QPushButton("全部断开")
+        self._disconnect_all_btn = QPushButton(tr("camera.disconnect_all"))
         self._disconnect_all_btn.clicked.connect(self._on_disconnect_all)
+        self._disconnect_all_btn.setMinimumWidth(112)
         action_row.addWidget(self._disconnect_all_btn)
-        self._save_binding_btn = QPushButton("保存绑定")
+        self._save_binding_btn = QPushButton(tr("camera.save_binding"))
         self._save_binding_btn.clicked.connect(self._on_save_binding)
+        self._save_binding_btn.setMinimumWidth(112)
         action_row.addWidget(self._save_binding_btn)
         action_row.addStretch()
         layout.addLayout(action_row)
@@ -174,15 +388,26 @@ class CameraManagementPage(QWidget):
         """Return short display text for a slot status."""
         binding = self._binding_store.get_binding(sid)
         if binding is None or not binding.serial_number:
-            return f"{sid}: ○ 空闲"
+            return tr("camera_mgmt.slot_free", sid=sid)
         dev = self._cameras.get(sid)
         if dev is not None:
             st = dev.get_status()
             if st.grabbing:
-                return f"{sid}: ● 采集中"
+                return tr("camera_mgmt.slot_grabbing", sid=sid)
             if st.connected:
-                return f"{sid}: ● 已连接"
-        return f"{sid}: ◐ 已绑定"
+                return tr("camera_mgmt.slot_connected", sid=sid)
+        return tr("camera_mgmt.slot_bound", sid=sid)
+
+    def _slot_status_color(self, status: str) -> str:
+        """Return CSS color value for slot status from current palette."""
+        c = ThemeManager.current()
+        return {
+            "grabbing": c.SUCCESS,
+            "connected": c.WARNING,
+            "error": c.ERROR,
+            "bound": c.TEXT_SECONDARY,
+            "free": c.TEXT_SECONDARY,
+        }.get(status, c.TEXT_SECONDARY)
 
     def _refresh_slot_status(self) -> None:
         for sid in SLOT_IDS:
@@ -192,18 +417,20 @@ class CameraManagementPage(QWidget):
                 # Color coding
                 binding = self._binding_store.get_binding(sid)
                 dev = self._cameras.get(sid)
+                color = self._slot_status_color("free")
+                bold = ""
                 if dev is not None:
                     st = dev.get_status()
                     if st.grabbing:
-                        lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #4CAF50; font-weight: bold;")
+                        color = self._slot_status_color("grabbing")
+                        bold = "; font-weight: bold"
                     elif st.connected:
-                        lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #FF9800;")
+                        color = self._slot_status_color("connected")
                     elif st.last_error_code != 0:
-                        lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #F44336;")
+                        color = self._slot_status_color("error")
                 elif binding is not None and binding.serial_number:
-                    lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #888;")
-                else:
-                    lbl.setStyleSheet("font-size: 11px; padding: 2px 6px; color: #555;")
+                    color = self._slot_status_color("bound")
+                lbl.setStyleSheet(f"font-size: 11px; padding: 2px 6px; color: {color}{bold};")
 
     def _on_slot_changed(self, _text: str) -> None:
         slot = self._slot_combo.currentText()
@@ -221,7 +448,7 @@ class CameraManagementPage(QWidget):
     # ------------------------------------------------------------------
 
     def _build_param_section(self) -> None:
-        self._param_group = QGroupBox("参数控制")
+        self._param_group = QGroupBox(tr("camera_mgmt.param_group"))
         layout = QVBoxLayout(self._param_group)
 
         # Row 1: Exposure, Gain, Trigger Mode, Trigger Source, Pixel Format
@@ -232,7 +459,7 @@ class CameraManagementPage(QWidget):
         self._exposure_spin.setValue(100.0)
         self._exposure_spin.setSuffix(" us")
         self._exposure_spin.setDecimals(1)
-        row1.addWidget(QLabel("曝光:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.exposure_label")))
         row1.addWidget(self._exposure_spin)
 
         self._gain_spin = QDoubleSpinBox()
@@ -240,26 +467,26 @@ class CameraManagementPage(QWidget):
         self._gain_spin.setValue(1.0)
         self._gain_spin.setSuffix(" dB")
         self._gain_spin.setDecimals(1)
-        row1.addWidget(QLabel("增益:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.gain_label")))
         row1.addWidget(self._gain_spin)
 
-        row1.addWidget(QLabel("触发:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.trigger_label")))
         self._trigger_combo = QComboBox()
         self._trigger_combo.addItems(["Off", "On"])
         self._trigger_combo.setCurrentText("Off")
         row1.addWidget(self._trigger_combo)
 
-        row1.addWidget(QLabel("触发源:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.trigger_src_label")))
         self._trigger_src_combo = QComboBox()
         self._trigger_src_combo.addItems(["Line0", "Line1", "Line2", "Line3", "Software"])
         row1.addWidget(self._trigger_src_combo)
 
-        row1.addWidget(QLabel("采集模式:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.acq_mode_label")))
         self._acq_mode_combo = QComboBox()
         self._acq_mode_combo.addItems(["Continuous", "SingleFrame"])
         row1.addWidget(self._acq_mode_combo)
 
-        row1.addWidget(QLabel("格式:"))
+        row1.addWidget(QLabel(tr("camera_mgmt.pixel_format_label")))
         self._pixel_fmt_combo = QComboBox()
         self._pixel_fmt_combo.addItems(["Mono8", "Mono10", "Mono12", "BayerRG8", "RGB8"])
         row1.addWidget(self._pixel_fmt_combo)
@@ -273,64 +500,64 @@ class CameraManagementPage(QWidget):
         self._line_rate_spin.setRange(100, 200000)
         self._line_rate_spin.setValue(20000)
         self._line_rate_spin.setSuffix(" Hz")
-        row2.addWidget(QLabel("行频:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.line_rate_label")))
         row2.addWidget(self._line_rate_spin)
 
         self._width_spin = QSpinBox()
         self._width_spin.setRange(256, 8192)
         self._width_spin.setValue(2048)
-        row2.addWidget(QLabel("宽度:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.width_label")))
         row2.addWidget(self._width_spin)
 
         self._block_h_spin = QSpinBox()
         self._block_h_spin.setRange(64, 8192)
         self._block_h_spin.setValue(1024)
-        row2.addWidget(QLabel("块高:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.block_height_label")))
         row2.addWidget(self._block_h_spin)
 
         self._pkt_size_spin = QSpinBox()
         self._pkt_size_spin.setRange(1500, 65535)
         self._pkt_size_spin.setValue(9000)
-        row2.addWidget(QLabel("包大小:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.packet_size_label")))
         row2.addWidget(self._pkt_size_spin)
 
         self._inter_delay_spin = QSpinBox()
         self._inter_delay_spin.setRange(0, 10000)
         self._inter_delay_spin.setValue(0)
         self._inter_delay_spin.setSuffix(" us")
-        row2.addWidget(QLabel("包间隔:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.inter_delay_label")))
         row2.addWidget(self._inter_delay_spin)
 
         self._buffer_spin = QSpinBox()
         self._buffer_spin.setRange(1, 256)
         self._buffer_spin.setValue(16)
-        row2.addWidget(QLabel("缓存:"))
+        row2.addWidget(QLabel(tr("camera_mgmt.buffer_label")))
         row2.addWidget(self._buffer_spin)
 
         layout.addLayout(row2)
 
         # Row 3: Reverse X/Y + action buttons
         row3 = QHBoxLayout()
-        self._reverse_x_cb = QCheckBox("水平翻转")
+        self._reverse_x_cb = QCheckBox(tr("camera_mgmt.reverse_x"))
         row3.addWidget(self._reverse_x_cb)
-        self._reverse_y_cb = QCheckBox("垂直翻转")
+        self._reverse_y_cb = QCheckBox(tr("camera_mgmt.reverse_y"))
         row3.addWidget(self._reverse_y_cb)
         row3.addStretch()
 
-        self._apply_btn = QPushButton("应用到选中相机")
+        self._apply_btn = QPushButton(tr("camera.apply_params"))
         self._apply_btn.clicked.connect(self._on_apply_params)
         self._apply_btn.setObjectName("primaryBtn")
         row3.addWidget(self._apply_btn)
 
-        self._save_tpl_btn = QPushButton("保存模板")
+        self._save_tpl_btn = QPushButton(tr("camera.save_template"))
         self._save_tpl_btn.clicked.connect(self._on_save_template)
         row3.addWidget(self._save_tpl_btn)
 
-        self._load_tpl_btn = QPushButton("加载模板")
+        self._load_tpl_btn = QPushButton(tr("camera.load_template"))
         self._load_tpl_btn.clicked.connect(self._on_load_template)
         row3.addWidget(self._load_tpl_btn)
 
-        self._reset_params_btn = QPushButton("恢复默认")
+        self._reset_params_btn = QPushButton(tr("camera.reset_params"))
         self._reset_params_btn.clicked.connect(self._on_reset_params)
         row3.addWidget(self._reset_params_btn)
 
@@ -341,34 +568,36 @@ class CameraManagementPage(QWidget):
     # ------------------------------------------------------------------
 
     def _build_preview_section(self) -> None:
-        self._preview_group = QGroupBox("实时预览")
+        self._preview_group = QGroupBox(tr("camera_mgmt.preview_group"))
         layout = QVBoxLayout(self._preview_group)
 
         # Image display
         self._preview_label = QLabel()
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setMinimumSize(320, 240)
+        c = ThemeManager.current()
         self._preview_label.setStyleSheet(
-            "background-color: #111; border: 1px solid #333; color: #555;"
+            f"background-color: {c.BG_INPUT}; border: 1px solid {c.BORDER}; color: {c.TEXT_SECONDARY};"
         )
-        self._preview_label.setText("未开始预览")
+        self._preview_label.setText(tr("camera_mgmt.preview_not_started"))
         layout.addWidget(self._preview_label, 1)
 
         # Info bar
         self._preview_info = QLabel("—")
-        self._preview_info.setStyleSheet("color: #888; font-size: 11px;")
+        c = ThemeManager.current()
+        self._preview_info.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")
         layout.addWidget(self._preview_info)
 
         # Controls
         btn_row = QHBoxLayout()
-        self._preview_start_btn = QPushButton("开始预览")
+        self._preview_start_btn = QPushButton(tr("camera.start_preview"))
         self._preview_start_btn.clicked.connect(self._on_start_preview)
         btn_row.addWidget(self._preview_start_btn)
-        self._preview_stop_btn = QPushButton("停止预览")
+        self._preview_stop_btn = QPushButton(tr("camera.stop_preview"))
         self._preview_stop_btn.setEnabled(False)
         self._preview_stop_btn.clicked.connect(self._on_stop_preview)
         btn_row.addWidget(self._preview_stop_btn)
-        self._snapshot_btn = QPushButton("保存快照")
+        self._snapshot_btn = QPushButton(tr("camera.snapshot"))
         self._snapshot_btn.clicked.connect(self._on_snapshot)
         self._snapshot_btn.setEnabled(False)
         btn_row.addWidget(self._snapshot_btn)
@@ -385,13 +614,14 @@ class CameraManagementPage(QWidget):
     # ------------------------------------------------------------------
 
     def _build_diag_section(self) -> None:
-        self._diag_group = QGroupBox("诊断信息")
+        self._diag_group = QGroupBox(tr("camera_mgmt.diag_group"))
         layout = QVBoxLayout(self._diag_group)
 
         self._diag_text = QTextEdit()
         self._diag_text.setReadOnly(True)
+        c = ThemeManager.current()
         self._diag_text.setStyleSheet(
-            "background-color: #1E1E1E; color: #CCC; font-size: 12px;"
+            f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY}; font-size: 12px;"
         )
         layout.addWidget(self._diag_text, 1)
 
@@ -414,7 +644,7 @@ class CameraManagementPage(QWidget):
     def _on_save_binding(self) -> None:
         """Persist current bindings to disk."""
         self._binding_store.save_all()
-        QMessageBox.information(self, "保存", "相机绑定已保存。")
+        QMessageBox.information(self, tr("camera_mgmt.dlg_save"), tr("camera_mgmt.saved"))
         logger.info("Bindings saved manually")
 
     # ------------------------------------------------------------------
@@ -426,12 +656,15 @@ class CameraManagementPage(QWidget):
         sdk_ok = sdk_loader.load_sdk()
         if not sdk_ok:
             error = sdk_loader.SDK_ERROR or "unknown error"
-            self._sdk_label.setText(f"SDK: 加载失败 — {error}")
-            self._sdk_label.setStyleSheet("color: #F44336;")
+            self._sdk_label.setText(tr("camera_mgmt.sdk_load_failed", error=error))
+            c = ThemeManager.current()
+            self._sdk_label.setStyleSheet(f"color: {c.ERROR};")
             self._refresh_device_choices()
+            self._refresh_adapters()
             return
-        self._sdk_label.setText("SDK: 已加载")
-        self._sdk_label.setStyleSheet("color: #4CAF50;")
+        self._sdk_label.setText(tr("commissioning.sdk_loaded"))
+        c = ThemeManager.current()
+        self._sdk_label.setStyleSheet(f"color: {c.SUCCESS};")
 
         try:
             self._discovered = HikrobotLineScanCamera.enumerate_devices()
@@ -440,18 +673,19 @@ class CameraManagementPage(QWidget):
             logger.exception("Device enumeration failed")
 
         self._refresh_device_choices()
+        self._refresh_adapters()
 
         if not self._discovered:
-            self._device_list.setPlainText("未发现任何设备。\n请检查网线连接、相机供电和 IP 配置。")
+            self._device_list.setPlainText(tr("camera_mgmt.no_devices_hint"))
         else:
             lines = []
             for d in self._discovered:
                 lines.append(
-                    f"序列号: {d.serial_number}  型号: {d.model}  厂商: {d.vendor}\n"
+                    f"SN: {d.serial_number}  Model: {d.model}  Vendor: {d.vendor}\n"
                     f"  IP: {d.ip_address}  MAC: {d.mac_address}"
                 )
                 if d.user_defined_name:
-                    lines[-1] += f"  名称: {d.user_defined_name}"
+                    lines[-1] += f"  Name: {d.user_defined_name}"
             self._device_list.setPlainText("\n".join(lines))
 
     def _refresh_device_choices(self) -> None:
@@ -474,7 +708,7 @@ class CameraManagementPage(QWidget):
     def _on_bind_connect(self) -> None:
         """Bind selected discovered device to current slot and connect."""
         if not self._discovered:
-            QMessageBox.warning(self, "提示", "请先扫描设备。")
+            QMessageBox.warning(self, tr("app.tip"), tr("camera_mgmt.scan_first"))
             return
 
         slot = self._slot_combo.currentText()
@@ -482,7 +716,7 @@ class CameraManagementPage(QWidget):
 
         selected_idx = self._device_combo.currentIndex()
         if selected_idx < 0 or selected_idx >= len(self._discovered):
-            QMessageBox.warning(self, "提示", "请选择要绑定的相机。")
+            QMessageBox.warning(self, tr("app.tip"), tr("camera_mgmt.select_camera"))
             return
 
         device_info = self._discovered[selected_idx]
@@ -505,8 +739,14 @@ class CameraManagementPage(QWidget):
         if not cam.open(device_info.serial_number):
             code, msg = cam.get_last_error()
             QMessageBox.critical(
-                self, "连接失败",
-                f"无法连接相机 {device_info.serial_number}\n错误 0x{code:08X}: {msg}"
+                self,
+                tr("commissioning.connect_failed"),
+                tr(
+                    "camera_mgmt.connect_error_fmt",
+                    sn=device_info.serial_number,
+                    code=code,
+                    msg=msg,
+                ),
             )
             return
 
@@ -551,7 +791,7 @@ class CameraManagementPage(QWidget):
         """Connect all enabled bound cameras."""
         serial_map = self._binding_store.get_serial_map()
         if not serial_map:
-            QMessageBox.information(self, "提示", "没有已启用且已绑定的相机。")
+            QMessageBox.information(self, tr("app.tip"), tr("camera_mgmt.no_enabled_cameras"))
             return
 
         for slot, sn in serial_map.items():
@@ -595,7 +835,7 @@ class CameraManagementPage(QWidget):
         """Apply current parameter values to the selected camera."""
         cam = self._get_selected_camera()
         if cam is None:
-            QMessageBox.warning(self, "提示", "当前槽位没有已连接的相机。")
+            QMessageBox.warning(self, tr("app.tip"), tr("camera_mgmt.no_connected_camera"))
             return
 
         params = [
@@ -621,7 +861,9 @@ class CameraManagementPage(QWidget):
             except Exception as e:
                 logger.warning("Failed to set %s: %s", name, e)
 
-        QMessageBox.information(self, "参数", "参数已应用。")
+        QMessageBox.information(
+            self, tr("camera_mgmt.dlg_params"), tr("camera_mgmt.params_applied")
+        )
 
     def _on_reset_params(self) -> None:
         """Reset UI parameters to defaults."""
@@ -647,13 +889,17 @@ class CameraManagementPage(QWidget):
         slot = self._slot_combo.currentText()
         name = f"Camera_{slot[-2:]}_Params"
         path = self._template_mgr.save(name, params)
-        QMessageBox.information(self, "模板", f"参数模板已保存到:\n{path}")
+        QMessageBox.information(
+            self, tr("camera_mgmt.dlg_template"), tr("camera_mgmt.template_saved", path=path)
+        )
 
     def _on_load_template(self) -> None:
         """Load parameters from a template."""
         templates = self._template_mgr.list_templates()
         if not templates:
-            QMessageBox.information(self, "模板", "没有已保存的参数模板。")
+            QMessageBox.information(
+                self, tr("camera_mgmt.dlg_template"), tr("camera_mgmt.no_template")
+            )
             return
 
         # Use the first template for the current slot, or the first overall
@@ -664,11 +910,15 @@ class CameraManagementPage(QWidget):
 
         params = self._template_mgr.load(name)
         if params is None:
-            QMessageBox.warning(self, "错误", f"无法加载模板: {name}")
+            QMessageBox.warning(
+                self, tr("app.error"), tr("camera_mgmt.template_load_error", name=name)
+            )
             return
 
         self._apply_params_from(params)
-        QMessageBox.information(self, "模板", f"已加载模板: {name}")
+        QMessageBox.information(
+            self, tr("camera_mgmt.dlg_template"), tr("camera_mgmt.template_loaded", name=name)
+        )
 
     def _collect_params(self) -> CameraParams:
         """Build a CameraParams from current UI state."""
@@ -715,7 +965,7 @@ class CameraManagementPage(QWidget):
         """Start live preview for the selected camera."""
         cam = self._get_selected_camera()
         if cam is None:
-            QMessageBox.warning(self, "提示", "当前槽位没有已连接的相机。请先绑定并连接。")
+            QMessageBox.warning(self, tr("app.tip"), tr("camera_mgmt.connect_first"))
             return
 
         self._preview_buffer = None
@@ -731,7 +981,11 @@ class CameraManagementPage(QWidget):
         cam.register_line_callback(on_line)
         if not cam.start_grabbing():
             code, msg = cam.get_last_error()
-            QMessageBox.critical(self, "预览失败", f"无法开始采集: 0x{code:08X} {msg}")
+            QMessageBox.critical(
+                self,
+                tr("camera_mgmt.dlg_preview_failed"),
+                tr("camera_mgmt.preview_failed", code=code, msg=msg),
+            )
             return
 
         self._preview_active = True
@@ -757,7 +1011,7 @@ class CameraManagementPage(QWidget):
         self._preview_start_btn.setEnabled(True)
         self._preview_stop_btn.setEnabled(False)
         self._snapshot_btn.setEnabled(False)
-        self._preview_label.setText("预览已停止")
+        self._preview_label.setText(tr("camera_mgmt.preview_stopped"))
         self._refresh_slot_status()
         logger.info("Preview stopped")
 
@@ -797,10 +1051,13 @@ class CameraManagementPage(QWidget):
         if self._preview_buffer is None:
             return
         import cv2
+
         ts = time.strftime("%Y%m%d_%H%M%S")
         fname = os.path.join(os.getcwd(), f"camera_snapshot_{ts}.png")
         cv2.imwrite(fname, self._preview_buffer)
-        QMessageBox.information(self, "快照", f"已保存: {fname}")
+        QMessageBox.information(
+            self, tr("camera_mgmt.dlg_snapshot"), tr("camera_mgmt.snapshot_saved", fname=fname)
+        )
         logger.info("Snapshot saved: %s", fname)
 
     # ------------------------------------------------------------------
@@ -814,30 +1071,52 @@ class CameraManagementPage(QWidget):
         cam = self._get_selected_camera()
 
         if cam is None:
-            self._diag_text.setPlainText("无已连接相机")
+            self._diag_text.setPlainText(tr("camera_mgmt.no_camera_diag"))
             return
 
         st = cam.get_status()
         w = cam.get_param("Width") or 2048
         h = cam.get_param("Height") or 1
 
-        lines.append(f"槽位:         {slot}")
-        lines.append(f"序列号:       {st.serial_number}")
-        lines.append(f"连接状态:     {'✓ 已连接' if st.connected else '✗ 断开'}")
-        lines.append(f"采集状态:     {'✓ 采集中' if st.grabbing else '✗ 停止'}")
-        lines.append(f"行频:         {st.line_rate:.0f} Hz")
-        lines.append(f"已收行数:     {st.received_line_count}")
-        lines.append(f"丢行数:       {st.dropped_line_count}")
-        lines.append(f"超时次数:     {st.timeout_count}")
-        lines.append(f"图像尺寸:     {w} × {h}")
-        lines.append(f"像素格式:     {cam.get_param('PixelFormat') or 'Mono8'}")
-        lines.append(f"曝光时间:     {cam.get_param('ExposureTime') or 0:.1f} us")
-        lines.append(f"增益:         {cam.get_param('Gain') or 0:.1f} dB")
+        lines.append(tr("camera_mgmt.diag_slot") + f"         {slot}")
+        lines.append(tr("camera_mgmt.diag_serial") + f"       {st.serial_number}")
+        lines.append(
+            tr("camera_mgmt.diag_conn_status")
+            + "     "
+            + (
+                tr("camera_mgmt.diag_connected_yes")
+                if st.connected
+                else tr("camera_mgmt.diag_connected_no")
+            )
+        )
+        lines.append(
+            tr("camera_mgmt.diag_grab_status")
+            + "     "
+            + (
+                tr("camera_mgmt.diag_grabbing_yes")
+                if st.grabbing
+                else tr("camera_mgmt.diag_grabbing_no")
+            )
+        )
+        lines.append(tr("camera_mgmt.diag_line_rate") + f"         {st.line_rate:.0f} Hz")
+        lines.append(tr("camera_mgmt.diag_received") + f"     {st.received_line_count}")
+        lines.append(tr("camera_mgmt.diag_dropped") + f"       {st.dropped_line_count}")
+        lines.append(tr("camera_mgmt.diag_timeout") + f"     {st.timeout_count}")
+        lines.append(tr("camera_mgmt.diag_image_size") + f"     {w} × {h}")
+        lines.append(
+            tr("camera_mgmt.diag_pixel_format") + f"     {cam.get_param('PixelFormat') or 'Mono8'}"
+        )
+        lines.append(
+            tr("camera_mgmt.diag_exposure") + f"     {cam.get_param('ExposureTime') or 0:.1f} us"
+        )
+        lines.append(tr("camera_mgmt.diag_gain") + f"         {cam.get_param('Gain') or 0:.1f} dB")
         err_code = st.last_error_code
         if err_code != 0:
-            lines.append(f"最后错误:     0x{err_code:08X} {st.last_error_message}")
+            lines.append(
+                tr("camera_mgmt.diag_last_error") + f"     0x{err_code:08X} {st.last_error_message}"
+            )
         else:
-            lines.append(f"最后错误:     —")
+            lines.append(tr("camera_mgmt.diag_last_error") + "     —")
 
         self._diag_text.setPlainText("\n".join(lines))
 
@@ -847,6 +1126,7 @@ class CameraManagementPage(QWidget):
 
     def showEvent(self, event: object) -> None:
         super().showEvent(event)
+        self._refresh_adapters()
         self._refresh_slot_status()
 
     def closeEvent(self, event: object) -> None:
@@ -859,7 +1139,61 @@ class CameraManagementPage(QWidget):
         super().closeEvent(event)
 
     def _refresh_text(self, lang: str = "") -> None:
-        pass
+        # Adapter table headers
+        self._adapter_group.setTitle(tr("camera_mgmt.adapter_group"))
+        self._adapter_table.setHorizontalHeaderLabels(
+            [
+                tr("device.col_adapter"),
+                tr("device.col_type"),
+                tr("device.col_status"),
+                tr("device.col_devices"),
+            ]
+        )
+        self._refresh_adapters()
+        # Group boxes
+        self._discovery_group.setTitle(tr("camera_mgmt.discovery_group"))
+        self._param_group.setTitle(tr("camera_mgmt.param_group"))
+        self._preview_group.setTitle(tr("camera_mgmt.preview_group"))
+        self._diag_group.setTitle(tr("camera_mgmt.diag_group"))
+        # Buttons
+        self._scan_btn.setText(tr("camera.scan"))
+        self._bind_btn.setText(tr("camera.bind_connect"))
+        self._unbind_btn.setText(tr("camera.unbind"))
+        self._connect_all_btn.setText(tr("camera.connect_all"))
+        self._disconnect_all_btn.setText(tr("camera.disconnect_all"))
+        self._save_binding_btn.setText(tr("camera.save_binding"))
+        self._apply_btn.setText(tr("camera.apply_params"))
+        self._save_tpl_btn.setText(tr("camera.save_template"))
+        self._load_tpl_btn.setText(tr("camera.load_template"))
+        self._reset_params_btn.setText(tr("camera.reset_params"))
+        self._preview_start_btn.setText(tr("camera.start_preview"))
+        self._preview_stop_btn.setText(tr("camera.stop_preview"))
+        self._snapshot_btn.setText(tr("camera.snapshot"))
+        # Role combo
+        self._role_combo.setItemText(0, tr("camera_mgmt.role_top"))
+        self._role_combo.setItemText(1, tr("camera_mgmt.role_left"))
+        self._role_combo.setItemText(2, tr("camera_mgmt.role_right"))
+        self._role_combo.setItemText(3, tr("camera_mgmt.role_spare"))
+        # Checkboxes
+        self._reverse_x_cb.setText(tr("camera_mgmt.reverse_x"))
+        self._reverse_y_cb.setText(tr("camera_mgmt.reverse_y"))
+        # Refresh status
+        self._refresh_slot_status()
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._device_list.setStyleSheet(
+            f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY}; font-size: 12px;"
+        )
+        self._preview_label.setStyleSheet(
+            f"background-color: {c.BG_INPUT}; border: 1px solid {c.BORDER}; color: {c.TEXT_SECONDARY};"
+        )
+        self._preview_info.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")
+        self._diag_text.setStyleSheet(
+            f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY}; font-size: 12px;"
+        )
+        self._refresh_slot_status()
 
     # ------------------------------------------------------------------
     # Public API
@@ -875,7 +1209,4 @@ class CameraManagementPage(QWidget):
 
     def get_connected_slots(self) -> list[str]:
         """Return slots that have connected cameras."""
-        return [
-            slot for slot, dev in self._cameras.items()
-            if dev.get_status().connected
-        ]
+        return [slot for slot, dev in self._cameras.items() if dev.get_status().connected]

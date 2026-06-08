@@ -7,11 +7,23 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core.id_utils import generate_id
-from core.storage import delete, fetch_all, fetch_one, insert, update
+from core.storage import fetch_all, fetch_one, insert, update
 
+# Legacy repo-local root — kept for backward compatibility.
+# New code should use core.workspace_paths instead.
 PROJECT_DATA_ROOT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "project_data"
 )
+
+_ws_project_root: str | None = None
+
+
+def _get_ws_project_root() -> str:
+    global _ws_project_root
+    if _ws_project_root is None:
+        from core.workspace_paths import get_project_data_root as _gpr
+        _ws_project_root = _gpr()
+    return _ws_project_root
 
 
 @dataclass
@@ -104,20 +116,34 @@ def update_project(project_id: str, **kwargs) -> InspectionProject | None:
 
 
 def delete_project(project_id: str) -> None:
-    delete("projects", project_id, "project_id")
+    from core.project_cascade import delete_project_cascade
+
+    delete_project_cascade(project_id)
 
 
 def get_project_data_dir(project_id: str) -> str:
+    """Resolve project data directory: workspace first, legacy fallback."""
     p = get_project(project_id)
     if not p:
         return ""
-    return os.path.join(
+
+    ws_dir = os.path.join(
+        _get_ws_project_root(), f"customer_{p.customer_id}", f"project_{project_id}"
+    )
+    if os.path.isdir(ws_dir):
+        return ws_dir
+
+    legacy_dir = os.path.join(
         PROJECT_DATA_ROOT, f"customer_{p.customer_id}", f"project_{project_id}"
     )
+    if os.path.isdir(legacy_dir):
+        return legacy_dir
+
+    return ws_dir
 
 
 def _create_project_dirs(customer_id: str, project_id: str) -> str:
-    base = os.path.join(PROJECT_DATA_ROOT, f"customer_{customer_id}", f"project_{project_id}")
+    base = os.path.join(_get_ws_project_root(), f"customer_{customer_id}", f"project_{project_id}")
     subdirs = [
         "configs",
         "sample_sessions",
