@@ -30,8 +30,16 @@ def test_list_backups(tmp_path):
 
 def test_restore_backup(tmp_path):
     meta = create_backup(name="restore_test", backup_dir=str(tmp_path))
-    restored = restore_backup(meta.backup_id, backup_dir=str(tmp_path))
+    restore_root = tmp_path / "restore_root"
+
+    restored = restore_backup(
+        meta.backup_id,
+        backup_dir=str(tmp_path),
+        restore_root=str(restore_root),
+    )
+
     assert "data/app.db" in restored or any("data" in r for r in restored)
+    assert restore_root.exists()
 
 
 def test_restore_backup_rejects_path_traversal(tmp_path):

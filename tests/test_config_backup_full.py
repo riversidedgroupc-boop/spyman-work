@@ -84,6 +84,8 @@ def test_create_backup_db_only(tmp_path):
 def test_export_project_config_package_contains_project_manifest(tmp_path, monkeypatch):
     db_path = tmp_path / "test.db"
     monkeypatch.setenv("COPPER_VISION_DB_PATH", str(db_path))
+    # Prevent LogManager singleton from writing audit.log to the real project dir
+    monkeypatch.setattr("core.config_backup._audit", lambda action, detail: None)
     import importlib
     import core.storage
     importlib.reload(core.storage)

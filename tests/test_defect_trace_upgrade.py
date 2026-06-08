@@ -1,22 +1,17 @@
 """Tests for defect trace upgrade (Phase 4) — production_defect_events queries."""
 import os
 import tempfile
+import shutil
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
+@pytest.fixture
+def tmp_output():
+    """Create a temp output root so record_ng_event doesn't write to real project dir."""
+    d = tempfile.mkdtemp()
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture
@@ -30,7 +25,7 @@ def ctx():
     return {"project_id": p.project_id, "spec_id": s.spec_id}
 
 
-def test_record_ng_event_with_v6_fields(ctx):
+def test_record_ng_event_with_v6_fields(ctx, tmp_output):
     from core.production_event import record_ng_event, list_defect_events
     import numpy as np
 
@@ -44,6 +39,7 @@ def test_record_ng_event_with_v6_fields(ctx):
         model_version="MODEL_test_001",
         defect_type="NG_A",
         position_meter=12.345,
+        output_root=tmp_output,
     )
     assert evt.event_id.startswith("EVT_")
     assert evt.model_version == "MODEL_test_001"
@@ -55,8 +51,7 @@ def test_record_ng_event_with_v6_fields(ctx):
     assert len(events) == 1
     assert events[0].event_id == evt.event_id
 
-
-def test_list_defect_events_filters_by_project(ctx):
+def test_list_defect_events_filters_by_project(ctx, tmp_output):
     from core.production_event import record_ng_event, list_defect_events
     import numpy as np
 
@@ -67,6 +62,7 @@ def test_list_defect_events_filters_by_project(ctx):
         camera_id="cam1",
         image=fake_img,
         model_version="M1",
+        output_root=tmp_output,
     )
     record_ng_event(
         project_id=ctx["project_id"],
@@ -74,12 +70,12 @@ def test_list_defect_events_filters_by_project(ctx):
         camera_id="cam2",
         image=fake_img,
         model_version="M2",
+        output_root=tmp_output,
     )
     events = list_defect_events(project_id=ctx["project_id"])
     assert len(events) == 2
 
-
-def test_list_defect_events_filters_by_spec(ctx):
+def test_list_defect_events_filters_by_spec(ctx, tmp_output):
     from core.production_event import record_ng_event, list_defect_events
     import numpy as np
 
@@ -89,12 +85,12 @@ def test_list_defect_events_filters_by_spec(ctx):
         spec_id=ctx["spec_id"],
         camera_id="cam1",
         image=fake_img,
+        output_root=tmp_output,
     )
     events = list_defect_events(spec_id=ctx["spec_id"])
     assert len(events) >= 1
 
-
-def test_ng_event_auto_derives_defect_type_from_prediction(ctx):
+def test_ng_event_auto_derives_defect_type_from_prediction(ctx, tmp_output):
     """When defect_type is empty but prediction has detections, auto-derive from best detection."""
     from core.production_event import record_ng_event
     import numpy as np
@@ -118,13 +114,13 @@ def test_ng_event_auto_derives_defect_type_from_prediction(ctx):
         camera_id="cam1",
         image=fake_img,
         prediction=FakePrediction(),
+        output_root=tmp_output,
     )
     assert evt.defect_type == "scratch"  # Highest confidence
     assert evt.max_confidence == pytest.approx(0.85)
     assert evt.detection_count == 2
 
-
-def test_ng_event_defaults_when_no_prediction(ctx):
+def test_ng_event_defaults_when_no_prediction(ctx, tmp_output):
     from core.production_event import record_ng_event
     import numpy as np
 
@@ -133,12 +129,12 @@ def test_ng_event_defaults_when_no_prediction(ctx):
         project_id=ctx["project_id"],
         camera_id="cam1",
         image=fake_img,
+        output_root=tmp_output,
     )
     assert evt.defect_type == ""
     assert evt.max_confidence == 0.0
     assert evt.detection_count == 0
     assert evt.position_meter is None
-
 
 def test_list_defect_events_returns_empty_for_unknown_project():
     from core.production_event import list_defect_events
