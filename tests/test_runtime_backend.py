@@ -8,6 +8,7 @@ import pytest
 from core.runtime_contracts import CameraRuntimeConfig, RuntimeConfig
 from runtime.runtime_backend import (
     CppRuntimeProcessBackend,
+    CppRuntimeStdioBackend,
     FakeCppRuntimeBackend,
     PythonRuntimeBackend,
     RuntimeBackend,
@@ -278,3 +279,14 @@ class TestCreateBackend:
         assert isinstance(backend, CppRuntimeProcessBackend)
         assert backend._client._config_file_path == "/tmp/config.json"
         assert backend._client._transport.config_file_path == "/tmp/config.json"
+
+    def test_create_cpp_stdio_backend_by_name(self) -> None:
+        backend = create_backend(
+            "cpp_runtime_stdio",
+            executable_path="/fake/exe",
+        )
+        assert isinstance(backend, CppRuntimeStdioBackend)
+
+    def test_create_cpp_stdio_backend_without_executable_raises(self) -> None:
+        with pytest.raises(ValueError, match="executable_path"):
+            create_backend("cpp_runtime_stdio")

@@ -7,7 +7,7 @@
 namespace cx_vision {
 
 struct RuntimeStatus {
-    std::string state{"stopped"};
+    std::string state{"idle"};
     std::int64_t uptime_ms{0};
     int queue_size{0};
     int dropped_frames{0};
@@ -43,11 +43,15 @@ std::string ToJsonLine(const RuntimeStatus& status);
 std::string ToJsonLine(const DefectEvent& event);
 
 // State-file persistence for one-shot CLI mode.
-// Returns STATE_FILE_MISSING when the file does not exist,
-// STATE_FILE_INVALID when the file exists but cannot be parsed.
 RuntimeStatus ReadStateFile(const std::string& path);
 bool WriteStateFile(const std::string& path, const RuntimeStatus& status);
 
 RuntimeConfigSummary ReadRuntimeConfigFile(const std::string& path);
+
+// JSON validation (exported for use by serve mode).
+bool ValidateMinimalJsonObject(const std::string& content);
+
+// stdin/stdout serve mode (long-lived process, JSONL protocol).
+int ServeMode(const std::string& session_name);
 
 }  // namespace cx_vision

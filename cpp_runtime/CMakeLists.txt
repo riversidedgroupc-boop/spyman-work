@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(cx_vision_runtime
     src/main.cpp
     src/runtime_contracts.cpp
+    src/runtime_serve.cpp
 )
 
 target_include_directories(cx_vision_runtime PRIVATE include)

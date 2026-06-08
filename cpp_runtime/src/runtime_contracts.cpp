@@ -465,10 +465,14 @@ class JsonValidator {
 
 }  // namespace (validator helpers)
 
+}  // namespace
+
 bool ValidateMinimalJsonObject(const std::string& content) {
     JsonValidator v(content);
     return v.ValidateObject();
 }
+
+namespace {
 
 // Returns true if every entry in the cameras array begins with '{'.
 // Returns true if cameras key is absent or array is empty '[]'.

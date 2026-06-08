@@ -9,6 +9,7 @@ struct Args {
     std::string command;
     std::string state_file;
     std::string config_file;
+    std::string session_name;
 };
 
 Args ParseArgs(int argc, char** argv) {
@@ -24,6 +25,8 @@ Args ParseArgs(int argc, char** argv) {
             args.state_file = argv[i + 1];
         } else if (flag == "--config-file") {
             args.config_file = argv[i + 1];
+        } else if (flag == "--session-name") {
+            args.session_name = argv[i + 1];
         }
     }
     return args;
@@ -34,6 +37,16 @@ Args ParseArgs(int argc, char** argv) {
 int main(int argc, char** argv) {
     const Args args = ParseArgs(argc, argv);
 
+    // ── serve mode: long-lived stdin/stdout JSONL process ───────────────
+    if (args.command == "serve") {
+        std::string session_name = args.session_name;
+        if (session_name.empty()) {
+            session_name = "cx_vision_runtime";
+        }
+        return cx_vision::ServeMode(session_name);
+    }
+
+    // ── one-shot CLI mode (existing) ────────────────────────────────────
     cx_vision::RuntimeStatus status;
 
     if (args.command == "start" && !args.config_file.empty()) {
@@ -51,13 +64,12 @@ int main(int argc, char** argv) {
     }
 
     if (!args.state_file.empty()) {
-        // State-file persistence mode: read first, then update on mutating commands.
-        cx_vision::RuntimeStatus disk = cx_vision::ReadStateFile(args.state_file);
+        cx_vision::RuntimeStatus disk =
+            cx_vision::ReadStateFile(args.state_file);
 
         if (args.command == "start") {
-            // STATE_FILE_MISSING is fine for start; we will create the file.
-            // STATE_FILE_INVALID means the file was corrupted; propagate error.
-            if (!disk.error_code.empty() && disk.error_code != "STATE_FILE_MISSING") {
+            if (!disk.error_code.empty()
+                && disk.error_code != "STATE_FILE_MISSING") {
                 status = disk;
             } else {
                 status.state = "running";
@@ -66,7 +78,8 @@ int main(int argc, char** argv) {
                 status.error_message = "";
             }
         } else if (args.command == "stop") {
-            if (!disk.error_code.empty() && disk.error_code != "STATE_FILE_MISSING") {
+            if (!disk.error_code.empty()
+                && disk.error_code != "STATE_FILE_MISSING") {
                 status = disk;
             } else {
                 status.state = "stopped";
@@ -75,12 +88,10 @@ int main(int argc, char** argv) {
             }
         } else if (args.command == "status") {
             if (disk.error_code == "STATE_FILE_MISSING") {
-                // No state file -> normal, report stopped.
                 status.state = "stopped";
                 status.error_code = "";
                 status.error_message = "";
             } else if (!disk.error_code.empty()) {
-                // Corrupted or unparseable file -> report error.
                 status = disk;
             } else {
                 status = disk;
@@ -91,7 +102,6 @@ int main(int argc, char** argv) {
             status.error_message = "Supported commands: start, stop, status";
         }
     } else {
-        // No --state-file: one-shot defaults.
         if (args.command == "start") {
             status.state = "running";
             status.uptime_ms = 0;
@@ -110,7 +120,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Persist state to file on success.
     if (!args.state_file.empty() && status.error_code.empty()) {
         if (!cx_vision::WriteStateFile(args.state_file, status)) {
             status.state = "error";

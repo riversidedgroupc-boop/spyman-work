@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 
 from core.runtime_contracts import RuntimeConfig, RuntimeStatus
 from runtime.cpp_runtime_client import CppRuntimeClient, CppRuntimeProcessTransport
+from runtime.cpp_runtime_stdio import CppRuntimeStdioBackend
 from runtime.fake_cpp_runtime import FakeCppRuntime
 
 
@@ -129,11 +130,12 @@ def create_backend(
 
     Args:
         backend: ``"python_runtime"``, ``"fake_cpp_runtime"``,
-            ``"cpp_runtime"``, or a RuntimeBackend instance.
-        executable_path: Required when ``backend="cpp_runtime"`` --
-            path to ``cx_vision_runtime.exe``.
+            ``"cpp_runtime"``, ``"cpp_runtime_stdio"``, or a RuntimeBackend
+            instance.
+        executable_path: Required when ``backend="cpp_runtime"`` or
+            ``"cpp_runtime_stdio"`` -- path to ``cx_vision_runtime.exe``.
         state_file_path: Optional path for state-file persistence
-            (only meaningful with ``backend="cpp_runtime"``).
+            (only meaningful with ``backend="cpp_runtime"`` one-shot).
         config_file_path: Optional path for runtime config JSON file
             (only meaningful with ``backend="cpp_runtime"``).
 
@@ -141,8 +143,8 @@ def create_backend(
         Configured RuntimeBackend.
 
     Raises:
-        ValueError: Unknown backend name, or ``"cpp_runtime"`` without
-            ``executable_path``.
+        ValueError: Unknown backend name, or ``"cpp_runtime"`` /
+            ``"cpp_runtime_stdio"`` without ``executable_path``.
     """
     if isinstance(backend, RuntimeBackend):
         return backend
@@ -160,5 +162,14 @@ def create_backend(
             executable_path=executable_path,
             state_file_path=state_file_path,
             config_file_path=config_file_path,
+        )
+    if backend == "cpp_runtime_stdio":
+        if executable_path is None:
+            raise ValueError(
+                "backend='cpp_runtime_stdio' requires executable_path=... "
+                "(path to cx_vision_runtime.exe)"
+            )
+        return CppRuntimeStdioBackend(
+            executable_path=executable_path,
         )
     raise ValueError(f"Unknown backend: {backend!r}")

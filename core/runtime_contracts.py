@@ -4,9 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RuntimeBackend = Literal["python_runtime", "fake_cpp_runtime", "cpp_runtime"]
+RuntimeBackend = Literal["python_runtime", "fake_cpp_runtime", "cpp_runtime", "cpp_runtime_stdio"]
 CameraType = Literal["area_scan", "line_scan", "folder_watcher"]
-RuntimeState = Literal["stopped", "starting", "running", "stopping", "error"]
+RuntimeState = Literal["idle", "stopped", "starting", "running", "stopping", "error"]
 CommandName = Literal["start", "stop", "status"]
 
 
