@@ -28,6 +28,8 @@ offline_pkgs/
 phase4_v0_4_platform/
 project_data/
 camera_test_frame_*.png
+dist/
+focus_runs/
 
 # Local sample datasets
 data/images/copper images/
@@ -41,3 +43,6 @@ data/image_index.db
 Thumbs.db
 .vscode/
 .idea/
+
+# C++ build artifacts
+cpp_runtime/build/

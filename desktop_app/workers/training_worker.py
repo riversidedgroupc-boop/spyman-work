@@ -1,4 +1,5 @@
 """Training worker — runs YOLO training in background thread."""
+
 from __future__ import annotations
 
 import io
@@ -37,6 +38,7 @@ def parse_training_progress(line: str, total_epochs: int) -> tuple[int, int] | N
 
 class TrainingWorker(BaseWorker):
     """Runs YOLO training via ultralytics in a QThread."""
+
     log_line = Signal(str)
 
     def __init__(
@@ -125,7 +127,9 @@ class TrainingWorker(BaseWorker):
             self.message.emit(tr("training.loading_base", model=self._base_model))
             model = YOLO(self._base_model)
 
-            self.message.emit(tr("training.starting", epochs=self._epochs, imgsz=self._imgsz, batch=self._batch))
+            self.message.emit(
+                tr("training.starting", epochs=self._epochs, imgsz=self._imgsz, batch=self._batch)
+            )
             self.progress.emit(0, self._epochs)
             results = model.train(
                 data=self._dataset_yaml,
@@ -178,6 +182,7 @@ class TrainingWorker(BaseWorker):
             if best_path:
                 from core.model_version import create_model_version
                 from core.training_job import get_training_job
+
                 job = get_training_job(self._job_id)
                 if job:
                     create_model_version(
@@ -197,6 +202,7 @@ class TrainingWorker(BaseWorker):
         except Exception as e:
             self.message.emit(tr("training.failed", error=str(e)))
             from core.training_job import update_training_job
+
             update_training_job(self._job_id, status="failed", notes=str(e))
             raise
         finally:

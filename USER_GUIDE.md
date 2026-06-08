@@ -58,10 +58,10 @@ pip install -r requirements.txt
 即使没有任何模型文件，也可以启动并体验完整流程：
 
 ```bash
-streamlit run app.py
+python main.py
 ```
 
-浏览器打开 `http://localhost:8501`。
+桌面应用启动。Streamlit 辅助模块通过 `streamlit run ui/<module>.py` 单独启动。
 
 ### 1.4 首次使用流程
 
@@ -694,7 +694,7 @@ class MyModelRunner(BaseRunner):
 ```
 
 3. 在 `configs/models.yaml` 中添加配置段
-4. 在 `app.py` 的 `load_all_runners()` 函数中添加加载逻辑
+4. 在模型加载入口（`model_runners/` 目录下对应 runner）中添加加载逻辑
 
 ### 9.2 添加新的融合策略
 

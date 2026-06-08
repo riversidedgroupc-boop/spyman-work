@@ -1,4 +1,5 @@
 """Inference worker — runs model inference in background."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
@@ -9,6 +10,7 @@ from desktop_app.workers.base_worker import BaseWorker
 
 class InferenceWorker(BaseWorker):
     """Runs batch inference using model_runners."""
+
     result_ready = Signal(str, object)  # image_path, ImagePrediction
 
     def __init__(

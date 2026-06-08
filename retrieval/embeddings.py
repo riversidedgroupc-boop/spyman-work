@@ -10,6 +10,9 @@ import numpy as np
 from PIL import Image
 
 
+EMBEDDING_CROP_SIZE = (64, 64)
+
+
 def extract_crop(image_path: str, bbox: list[float]) -> Image.Image:
     """Crop the defect region from an image given a bounding box."""
     img = Image.open(image_path).convert("RGB")
@@ -54,10 +57,10 @@ def compute_hog_embedding(crop: Image.Image) -> np.ndarray | None:
         import numpy as np
 
         gray = np.array(crop.convert("L"))
-        gray = cv2.resize(gray, (64, 64))
+        gray = cv2.resize(gray, EMBEDDING_CROP_SIZE)
 
         from cv2 import HOGDescriptor
-        hog = HOGDescriptor((64, 64), (16, 16), (8, 8), (8, 8), 9)
+        hog = HOGDescriptor(EMBEDDING_CROP_SIZE, (16, 16), (8, 8), (8, 8), 9)
         h = hog.compute(gray)
         return h.flatten().astype(np.float64)
     except ImportError:

@@ -50,6 +50,48 @@ def _make_report() -> BenchmarkReport:
     )
 
 
+def _make_report_with_context() -> BenchmarkReport:
+    return BenchmarkReport(
+        config=BenchmarkConfig(
+            camera_count=3,
+            line_speed_mpm=80.0,
+            model_combo="yolo+patchcore",
+            save_mode="save_ng_only",
+            batch_size=4,
+            duration_sec=60.0,
+            source_type="simulated",
+            speed_multiplier=1.0,
+            backend="onnx",
+            project_id="PROJ_test",
+            dataset_version_id="DSVER_001",
+            model_version_id="MODEL_abc",
+        ),
+        duration_sec=58.3,
+        avg_tiles_per_sec=245.6,
+        max_tiles_per_sec=310.2,
+        avg_latency_ms=12.5,
+        p95_latency_ms=28.3,
+        p99_latency_ms=45.1,
+        avg_cpu_pct=35.2,
+        peak_cpu_pct=68.7,
+        avg_gpu_pct=72.1,
+        peak_gpu_pct=95.3,
+        avg_vram_mb=1024.0,
+        peak_vram_mb=1536.0,
+        avg_ram_gb=4.2,
+        peak_ram_gb=6.8,
+        avg_spi=52.3,
+        peak_spi=78.9,
+        total_tiles=14200,
+        total_dropped=5,
+        total_saved=120,
+        hardware_advice={
+            "recommended_tier": "L2",
+            "notes": "入门独显平台适用",
+        },
+    )
+
+
 class TestExportMarkdown:
     def test_contains_config_section(self):
         md = export_markdown(_make_report())
@@ -80,6 +122,21 @@ class TestExportMarkdown:
         md = export_markdown(_make_report())
         assert "## Hardware Recommendation" in md
         assert "L2" in md
+
+    def test_contains_backend_in_config(self):
+        md = export_markdown(_make_report_with_context())
+        assert "onnx" in md
+
+    def test_context_section_shows_project_info(self):
+        md = export_markdown(_make_report_with_context())
+        assert "## Context" in md
+        assert "PROJ_test" in md
+        assert "DSVER_001" in md
+        assert "MODEL_abc" in md
+
+    def test_context_section_omitted_when_no_project(self):
+        md = export_markdown(_make_report())
+        assert "(no project context)" in md
 
 
 class TestExportJson:

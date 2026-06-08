@@ -6,7 +6,6 @@ Stores embeddings under ``.cache/retrieval/``.
 from __future__ import annotations
 
 import json
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +18,7 @@ from retrieval.embeddings import (
 )
 
 DEFAULT_INDEX_DIR = Path(".cache/retrieval")
+EMBEDDING_DIM = 80
 
 
 def build_retrieval_index(
@@ -58,34 +58,59 @@ def build_retrieval_index(
             continue
 
     index: dict = {
-        "embeddings": np.array(embeddings) if embeddings else np.array([]).reshape(0, 80),
+        "embeddings": np.array(embeddings) if embeddings else np.array([]).reshape(0, EMBEDDING_DIM),
         "records": valid_records,
         "num_indexed": len(valid_records),
     }
 
-    # Save to disk
+    # Save to disk (numpy for embeddings, JSON for records/metadata)
     if index_path is None:
-        index_path = DEFAULT_INDEX_DIR / "defect_index.pkl"
+        index_path = DEFAULT_INDEX_DIR / "defect_index"
     else:
         index_path = Path(index_path)
 
-    index_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(index_path, "wb") as f:
-        pickle.dump(index, f)
+    stem = index_path.with_suffix("")
+    stem.parent.mkdir(parents=True, exist_ok=True)
 
-    # Also save records as JSON for human inspection
-    json_path = index_path.with_suffix(".json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(valid_records, f, ensure_ascii=False, indent=2)
+    embeddings_path = stem.with_suffix(".npy")
+    records_path = stem.with_suffix(".json")
+
+    embeddings_arr: np.ndarray = np.array(embeddings) if embeddings else np.array([]).reshape(0, EMBEDDING_DIM)
+    np.save(str(embeddings_path), embeddings_arr)
+    with open(records_path, "w", encoding="utf-8") as f:
+        json.dump({"records": valid_records, "num_indexed": len(valid_records)}, f, ensure_ascii=False, indent=2)
 
     return index
 
 
 def load_retrieval_index(index_path: str | Path) -> dict:
-    """Load a saved retrieval index."""
+    """Load a saved retrieval index (JSON + numpy, with legacy pickle fallback)."""
     index_path = Path(index_path)
-    with open(index_path, "rb") as f:
-        return pickle.load(f)
+    stem = index_path.with_suffix("")
+
+    embeddings_path = stem.with_suffix(".npy")
+    records_path = stem.with_suffix(".json")
+
+    # New format: separate .npy + .json
+    if embeddings_path.exists() and records_path.exists():
+        embeddings = np.load(str(embeddings_path))
+        with open(records_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            "embeddings": embeddings,
+            "records": data["records"],
+            "num_indexed": data["num_indexed"],
+        }
+
+    # Legacy format: single .pkl file (backward compatibility)
+    import pickle as _pickle_for_migration
+    pkl_path = index_path.with_suffix(".pkl")
+    if pkl_path.exists():
+        with open(pkl_path, "rb") as f:
+            legacy = _pickle_for_migration.load(f)
+        return legacy
+
+    raise FileNotFoundError(f"Index not found at {stem}.npy or {pkl_path}")
 
 
 def search_similar_defects(

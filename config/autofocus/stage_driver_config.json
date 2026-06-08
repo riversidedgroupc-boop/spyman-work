@@ -1,0 +1,23 @@
+{
+  "stage_driver_type": "mock",
+  "available_driver_types": [
+    "mock",
+    "serial",
+    "plc",
+    "motion_card"
+  ],
+  "serial": {
+    "port": "COM3",
+    "baudrate": 115200,
+    "timeout_s": 1.0
+  },
+  "default_motion": {
+    "z_min_mm": 0.0,
+    "z_max_mm": 30.0,
+    "z_safe_mm": 5.0,
+    "home_timeout_s": 20.0,
+    "move_timeout_s": 5.0,
+    "settle_ms": 150,
+    "backlash_mm": 0.2
+  }
+}

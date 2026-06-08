@@ -1,4 +1,5 @@
 """QThread worker for dataset building + quality checking."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal

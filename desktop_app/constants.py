@@ -1,4 +1,5 @@
 """Application-wide constants."""
+
 from __future__ import annotations
 
 APP_NAME = "CX-vision"
@@ -12,22 +13,18 @@ WINDOW_MIN_HEIGHT = 600
 
 NAV_WIDTH = 200
 NAV_COLLAPSED_WIDTH = 48
-NAV_ITEM_MIN_HEIGHT = 36
-NAV_ITEM_MAX_HEIGHT = 84
+NAV_ITEM_MIN_HEIGHT = 48
+NAV_ITEM_MAX_HEIGHT = 56
 
 NAV_ITEMS: list[dict[str, str]] = [
-    {"id": "project_center", "label": "项目中心", "icon": "🏠"},
-    {"id": "capture", "label": "现场数据", "icon": "📷"},
-    {"id": "training", "label": "训练中心", "icon": "🔄"},
-    {"id": "evaluation", "label": "验证中心", "icon": "📊"},
-    {"id": "production", "label": "生产运行", "icon": "⚙️"},
-    {"id": "device_config", "label": "设备配置", "icon": "🔧"},
-    {"id": "field_workflow", "label": "现场交付流程", "icon": "🚀"},
-    {"id": "hybrid_retest", "label": "混合复检", "icon": "🔬"},
-    {"id": "benchmark", "label": "压测中心", "icon": "📈"},
-    {"id": "reports", "label": "报告中心", "icon": "📝"},
-    {"id": "log_center", "label": "日志中心", "icon": "📋"},
-    {"id": "backup", "label": "备份恢复", "icon": "💾"},
-    {"id": "settings", "label": "系统设置", "icon": "⚙️"},
-    {"id": "help", "label": "帮助", "icon": "❓"},
+    {"id": "workbench", "label": "项目工作台", "icon": "fa5s.th-large"},
+    {"id": "device_setup", "label": "设备配置", "icon": "fa5s.cogs"},
+    {"id": "site_capture", "label": "现场采集", "icon": "fa5s.camera"},
+    {"id": "sample_review", "label": "样本复核", "icon": "fa5s.search"},
+    {"id": "model_iteration", "label": "模型训练", "icon": "fa5s.brain"},
+    {"id": "hybrid_runtime", "label": "联合检测", "icon": "fa5s.project-diagram"},
+    {"id": "performance", "label": "性能验证", "icon": "fa5s.tachometer-alt"},
+    {"id": "delivery", "label": "报告交付", "icon": "fa5s.file-alt"},
+    {"id": "maintenance", "label": "系统维护", "icon": "fa5s.tools"},
+    {"id": "auto_focus", "label": "换型自动对焦", "icon": "fa5s.crosshairs"},
 ]

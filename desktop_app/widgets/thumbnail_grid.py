@@ -1,4 +1,5 @@
 """Thumbnail grid widget for browsing and selecting captured images."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -111,8 +112,12 @@ class ThumbnailGrid(QWidget):
 
         self._apply_filter()
 
-    def set_images(self, paths: list[str], cameras: dict[str, str] | None = None,
-                   labels: dict[str, str] | None = None) -> None:
+    def set_images(
+        self,
+        paths: list[str],
+        cameras: dict[str, str] | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> None:
         """Load images into the grid. cameras: {path: cam_id}, labels: {path: label}"""
         self._image_paths.clear()
         self._image_labels.clear()
@@ -176,7 +181,8 @@ class ThumbnailGrid(QWidget):
             thumb = QPixmap(full_path)
             if not thumb.isNull():
                 thumb = thumb.scaled(
-                    120, 120,
+                    120,
+                    120,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation,
                 )
@@ -222,8 +228,7 @@ class ThumbnailGrid(QWidget):
 
     def get_visible_paths(self) -> list[str]:
         return [
-            self._list.item(i).data(Qt.ItemDataRole.UserRole)
-            for i in range(self._list.count())
+            self._list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self._list.count())
         ]
 
     def get_all_labels(self) -> dict[str, str]:

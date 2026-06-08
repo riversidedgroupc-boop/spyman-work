@@ -1,35 +1,37 @@
 yolo:
   enabled: true
-  model_path: "models/yolo/best.pt"
+  model_path: models/yolo/best.pt
   conf_threshold: 0.6
   iou_threshold: 0.5
-  device: "auto"
-  task: "detect"
-
+  device: auto
+  task: detect
 patchcore:
-  enabled: false
-  mode: "mock"
-  model_path: "models/patchcore/model.ckpt"
-  result_file: "outputs/cache/patchcore_results.csv"
+  enabled: true
+  mode: statistical
+  model_path: outputs\train_anomaly\anomaly_full_20260528_165002\model_output\patchcore_model.json
+  result_file: outputs/cache/patchcore_results.csv
   score_threshold: 0.65
-  input_size: [256, 256]
-
+  input_size:
+  - 256
+  - 256
 efficientad:
   enabled: false
-  mode: "mock"
-  model_path: "models/efficientad/model.ckpt"
-  result_file: "outputs/cache/efficientad_results.csv"
+  mode: mock
+  model_path: models/efficientad/model.ckpt
+  result_file: outputs/cache/efficientad_results.csv
   score_threshold: 0.65
-  input_size: [256, 256]
-
+  input_size:
+  - 256
+  - 256
 fastflow:
   enabled: false
-  mode: "mock"
-  model_path: "models/fastflow/model.ckpt"
-  result_file: "outputs/cache/fastflow_results.csv"
+  mode: mock
+  model_path: models/fastflow/model.ckpt
+  result_file: outputs/cache/fastflow_results.csv
   score_threshold: 0.65
-  input_size: [256, 256]
-
+  input_size:
+  - 256
+  - 256
 opencv:
   enabled: true
   bright_threshold: 220

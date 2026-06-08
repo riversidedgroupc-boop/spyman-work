@@ -1,4 +1,5 @@
 """Dataset Version page — session list, version history, quality panel."""
+
 from __future__ import annotations
 
 import json
@@ -7,14 +8,26 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView, QMessageBox, QLabel, QGroupBox,
-    QProgressBar, QSplitter, QTextEdit,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QHeaderView,
+    QMessageBox,
+    QLabel,
+    QGroupBox,
+    QProgressBar,
+    QSplitter,
+    QTextEdit,
 )
 
 from core.capture_session import (
-    list_capture_sessions, get_classification_counts,
-    session_output_root, get_capture_session,
+    list_capture_sessions,
+    get_classification_counts,
+    session_output_root,
+    get_capture_session,
 )
 from core.dataset_builder import build_yolo_dataset_from_session
 from core.anomaly_dataset_builder import build_anomaly_dataset_from_session
@@ -51,10 +64,15 @@ class DatasetVersionPage(QWidget):
         sv = QVBoxLayout(session_grp)
 
         self._session_table = QTableWidget(0, 5)
-        self._session_table.setHorizontalHeaderLabels([
-            tr("dataset.col_id"), tr("dataset.col_name"), tr("app.status"),
-            tr("capture.col_captured"), tr("dataset.col_distribution"),
-        ])
+        self._session_table.setHorizontalHeaderLabels(
+            [
+                tr("dataset.col_id"),
+                tr("dataset.col_name"),
+                tr("app.status"),
+                tr("capture.col_captured"),
+                tr("dataset.col_distribution"),
+            ]
+        )
         self._session_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._session_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._session_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -88,12 +106,17 @@ class DatasetVersionPage(QWidget):
         hv = QVBoxLayout(hist_grp)
 
         self._version_table = QTableWidget(0, 7)
-        self._version_table.setHorizontalHeaderLabels([
-            tr("dataset_version.col_version"), tr("dataset_version.col_source"),
-            tr("dataset_version.col_images"), tr("dataset_version.col_classes"),
-            tr("dataset_version.col_quality"), tr("dataset_version.col_date"),
-            "",
-        ])
+        self._version_table.setHorizontalHeaderLabels(
+            [
+                tr("dataset_version.col_version"),
+                tr("dataset_version.col_source"),
+                tr("dataset_version.col_images"),
+                tr("dataset_version.col_classes"),
+                tr("dataset_version.col_quality"),
+                tr("dataset_version.col_date"),
+                "",
+            ]
+        )
         self._version_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._version_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._version_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -154,7 +177,9 @@ class DatasetVersionPage(QWidget):
         versions = list_dataset_versions(project_id=pid) if pid else []
         self._version_table.setRowCount(len(versions))
         for row, dv in enumerate(versions):
-            self._version_table.setItem(row, 0, QTableWidgetItem(dv.version_name or dv.version_id[:20]))
+            self._version_table.setItem(
+                row, 0, QTableWidgetItem(dv.version_name or dv.version_id[:20])
+            )
             self._version_table.setItem(row, 1, QTableWidgetItem(dv.source_type))
             self._version_table.setItem(row, 2, QTableWidgetItem(str(dv.image_count)))
             try:
@@ -173,7 +198,9 @@ class DatasetVersionPage(QWidget):
                 else:
                     qs_item.setForeground(Qt.GlobalColor.red)
             self._version_table.setItem(row, 4, qs_item)
-            self._version_table.setItem(row, 5, QTableWidgetItem(dv.created_at[:16] if dv.created_at else ""))
+            self._version_table.setItem(
+                row, 5, QTableWidgetItem(dv.created_at[:16] if dv.created_at else "")
+            )
             # Hidden: version_id
             self._version_table.setItem(row, 6, QTableWidgetItem(dv.version_id))
 
@@ -190,8 +217,12 @@ class DatasetVersionPage(QWidget):
         if dv is None:
             return
 
-        lines = [f"Version: {dv.version_name}", f"Source: {dv.source_type}",
-                  f"Images: {dv.image_count}", f"Val split: {dv.val_split_ratio}"]
+        lines = [
+            f"Version: {dv.version_name}",
+            f"Source: {dv.source_type}",
+            f"Images: {dv.image_count}",
+            f"Val split: {dv.val_split_ratio}",
+        ]
         if dv.quality_score is not None:
             lines.append(f"Quality Score: {dv.quality_score:.0f}/100")
         lines.append("")
@@ -292,10 +323,12 @@ class DatasetVersionPage(QWidget):
         self._gen_anom_btn.setEnabled(True)
 
         qs = getattr(result, "quality_score", 0)
-        msg = tr("dataset_version.build_complete",
-                 path=result.dataset_dir,
-                 images=result.image_count,
-                 score=qs)
+        msg = tr(
+            "dataset_version.build_complete",
+            path=result.dataset_dir,
+            images=result.image_count,
+            score=qs,
+        )
         QMessageBox.information(self, tr("app.completed"), msg)
         self._refresh_versions()
         self.data_changed.emit()
@@ -316,7 +349,8 @@ class DatasetVersionPage(QWidget):
             return
         name = name_item.text() if name_item else vid_item.text()
         reply = QMessageBox.question(
-            self, tr("app.confirm"),
+            self,
+            tr("app.confirm"),
             tr("dataset_version.delete_confirm", name=name),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -330,13 +364,23 @@ class DatasetVersionPage(QWidget):
     # ------------------------------------------------------------------
 
     def _refresh_text(self, lang: str = "") -> None:
-        self._session_table.setHorizontalHeaderLabels([
-            tr("dataset.col_id"), tr("dataset.col_name"), tr("app.status"),
-            tr("capture.col_captured"), tr("dataset.col_distribution"),
-        ])
-        self._version_table.setHorizontalHeaderLabels([
-            tr("dataset_version.col_version"), tr("dataset_version.col_source"),
-            tr("dataset_version.col_images"), tr("dataset_version.col_classes"),
-            tr("dataset_version.col_quality"), tr("dataset_version.col_date"),
-            "",
-        ])
+        self._session_table.setHorizontalHeaderLabels(
+            [
+                tr("dataset.col_id"),
+                tr("dataset.col_name"),
+                tr("app.status"),
+                tr("capture.col_captured"),
+                tr("dataset.col_distribution"),
+            ]
+        )
+        self._version_table.setHorizontalHeaderLabels(
+            [
+                tr("dataset_version.col_version"),
+                tr("dataset_version.col_source"),
+                tr("dataset_version.col_images"),
+                tr("dataset_version.col_classes"),
+                tr("dataset_version.col_quality"),
+                tr("dataset_version.col_date"),
+                "",
+            ]
+        )

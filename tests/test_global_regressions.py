@@ -6,11 +6,12 @@ import os
 import shutil
 import tempfile
 import threading
-import time
 
 import cv2
 import numpy as np
 import pytest
+
+from tests import wait_for_condition
 
 
 @pytest.fixture
@@ -87,7 +88,11 @@ def test_folder_watch_keeps_same_content_per_camera(tmp_path):
     )
     thread = threading.Thread(target=worker._run_impl)
     thread.start()
-    time.sleep(0.2)
+    wait_for_condition(
+        lambda: (tmp_path / "out" / "cam1" / "same.jpg").exists()
+        and (tmp_path / "out" / "cam2" / "same.jpg").exists(),
+        timeout=2.0,
+    )
     worker._cancelled = True
     thread.join(timeout=1)
 

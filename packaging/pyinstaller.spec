@@ -10,12 +10,14 @@ a = Analysis(
         ('../data', 'data'),
         ('../configs', 'configs'),
         ('../models', 'models'),
+        ('../desktop_app/ui', 'desktop_app/ui'),
     ],
     hiddenimports=[
         # Qt
         'PySide6.QtCore',
         'PySide6.QtGui',
         'PySide6.QtWidgets',
+        'qt_material',
         # ML / CV
         'ultralytics',
         'cv2',

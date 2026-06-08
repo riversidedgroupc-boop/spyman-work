@@ -1,13 +1,26 @@
 """Dialog for editing a single camera configuration."""
+
 from __future__ import annotations
 
 import json
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QDialogButtonBox,
-    QComboBox, QDoubleSpinBox, QSpinBox, QCheckBox, QTextEdit, QLineEdit,
-    QGroupBox, QHBoxLayout, QLabel, QMessageBox,
+    QDialog,
+    QWidget,
+    QVBoxLayout,
+    QFormLayout,
+    QDialogButtonBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QSpinBox,
+    QCheckBox,
+    QTextEdit,
+    QLineEdit,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
 )
 
 from camera_adapters import available_adapter_types
@@ -147,13 +160,24 @@ class CameraConfigDialog(QDialog):
         roi_layout = QHBoxLayout(roi_widget)
         roi_layout.setContentsMargins(0, 0, 0, 0)
         roi_layout.setSpacing(4)
-        self._roi_x = QSpinBox(); self._roi_x.setRange(0, 8192); self._roi_x.setSuffix(" x")
-        self._roi_y = QSpinBox(); self._roi_y.setRange(0, 8192); self._roi_y.setSuffix(" y")
-        self._roi_w = QSpinBox(); self._roi_w.setRange(0, 8192); self._roi_w.setPrefix("w:")
-        self._roi_h = QSpinBox(); self._roi_h.setRange(0, 8192); self._roi_h.setPrefix("h:")
-        roi_layout.addWidget(QLabel("x:")); roi_layout.addWidget(self._roi_x)
-        roi_layout.addWidget(QLabel("y:")); roi_layout.addWidget(self._roi_y)
-        roi_layout.addWidget(self._roi_w); roi_layout.addWidget(self._roi_h)
+        self._roi_x = QSpinBox()
+        self._roi_x.setRange(0, 8192)
+        self._roi_x.setSuffix(" x")
+        self._roi_y = QSpinBox()
+        self._roi_y.setRange(0, 8192)
+        self._roi_y.setSuffix(" y")
+        self._roi_w = QSpinBox()
+        self._roi_w.setRange(0, 8192)
+        self._roi_w.setPrefix("w:")
+        self._roi_h = QSpinBox()
+        self._roi_h.setRange(0, 8192)
+        self._roi_h.setPrefix("h:")
+        roi_layout.addWidget(QLabel("x:"))
+        roi_layout.addWidget(self._roi_x)
+        roi_layout.addWidget(QLabel("y:"))
+        roi_layout.addWidget(self._roi_y)
+        roi_layout.addWidget(self._roi_w)
+        roi_layout.addWidget(self._roi_h)
         roi_label = QLabel()
         bind(roi_label, "camera.roi")
         img_form.addRow(roi_label, roi_widget)
@@ -189,7 +213,9 @@ class CameraConfigDialog(QDialog):
         layout.addLayout(notes_row)
 
         # --- Buttons ---
-        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         btn_box.accepted.connect(self._on_accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -253,13 +279,15 @@ class CameraConfigDialog(QDialog):
             except json.JSONDecodeError:
                 QMessageBox.warning(self, tr("app.error"), tr("camera.invalid_connection_json"))
                 return
-        roi = json.dumps({
-            "x": self._roi_x.value(),
-            "y": self._roi_y.value(),
-            "w": self._roi_w.value(),
-            "h": self._roi_h.value(),
-            "trigger_source": self._trigger_source_combo.currentText(),
-        })
+        roi = json.dumps(
+            {
+                "x": self._roi_x.value(),
+                "y": self._roi_y.value(),
+                "w": self._roi_w.value(),
+                "h": self._roi_h.value(),
+                "trigger_source": self._trigger_source_combo.currentText(),
+            }
+        )
         self._result_cfg = CameraConfig(
             config_id=self._existing.config_id if self._existing else "",
             spec_id=self._existing.spec_id if self._existing else "",

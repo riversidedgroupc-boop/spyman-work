@@ -33,6 +33,27 @@ class TestBenchmarkConfig:
         assert cfg.camera_count == 6
         assert cfg.duration_sec == 60
 
+    def test_new_context_fields_default(self):
+        """New project/model/dataset/backend fields have sensible defaults."""
+        cfg = BenchmarkConfig()
+        assert cfg.backend == "auto"
+        assert cfg.project_id == ""
+        assert cfg.dataset_version_id == ""
+        assert cfg.model_version_id == ""
+
+    def test_new_context_fields_custom(self):
+        """Project, model_version, dataset_version and backend can be set."""
+        cfg = BenchmarkConfig(
+            backend="tensorrt",
+            project_id="PROJ_test",
+            dataset_version_id="DSVER_001",
+            model_version_id="MODEL_abc",
+        )
+        assert cfg.backend == "tensorrt"
+        assert cfg.project_id == "PROJ_test"
+        assert cfg.dataset_version_id == "DSVER_001"
+        assert cfg.model_version_id == "MODEL_abc"
+
 
 class TestBenchmarkReport:
     def test_minimal_report(self):

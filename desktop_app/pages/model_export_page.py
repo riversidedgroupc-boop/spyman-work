@@ -1,13 +1,30 @@
 """Model export / acceleration page — ONNX and TensorRT export with environment detection."""
+
 from __future__ import annotations
 
 import os
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
-    QComboBox, QPushButton, QLabel, QLineEdit, QSpinBox, QDoubleSpinBox,
-    QRadioButton, QButtonGroup, QTableWidget, QTableWidgetItem,
-    QHeaderView, QAbstractItemView, QProgressBar, QMessageBox, QFileDialog,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QFormLayout,
+    QComboBox,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QRadioButton,
+    QButtonGroup,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QProgressBar,
+    QMessageBox,
+    QFileDialog,
 )
 
 from core.export_environment import detect_export_environment, ExportEnvironment
@@ -16,6 +33,7 @@ from core.model_version import list_model_versions
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import tr, I18nManager
 from desktop_app.workers.model_export_worker import ModelExportWorker
+from desktop_app.theme_manager import ThemeManager
 
 
 class ModelExportPage(QWidget):
@@ -30,6 +48,7 @@ class ModelExportPage(QWidget):
         self._detect_env()
         self._refresh_models()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     # ── UI Construction ──────────────────────────────────────────
 
@@ -169,7 +188,7 @@ class ModelExportPage(QWidget):
         progress_row.addWidget(self._progress_bar, 1)
 
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet("color: #888;")
+        self._status_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY};")
         progress_row.addWidget(self._status_label)
         layout.addLayout(progress_row)
 
@@ -178,15 +197,17 @@ class ModelExportPage(QWidget):
         artifacts_layout = QVBoxLayout(artifacts_group)
 
         self._artifacts_table = QTableWidget(0, 7)
-        self._artifacts_table.setHorizontalHeaderLabels([
-            tr("export.col_id"),
-            tr("export.col_backend"),
-            tr("export.col_precision"),
-            tr("export.col_status"),
-            tr("export.col_path"),
-            tr("export.col_error"),
-            tr("export.col_device"),
-        ])
+        self._artifacts_table.setHorizontalHeaderLabels(
+            [
+                tr("export.col_id"),
+                tr("export.col_backend"),
+                tr("export.col_precision"),
+                tr("export.col_status"),
+                tr("export.col_path"),
+                tr("export.col_error"),
+                tr("export.col_device"),
+            ]
+        )
         self._artifacts_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._artifacts_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._artifacts_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -225,13 +246,9 @@ class ModelExportPage(QWidget):
         else:
             self._cuda_label.setText(tr("export.not_available"))
         self._torch_label.setText(self._env.torch_version or tr("export.not_available"))
-        self._ultralytics_label.setText(
-            self._env.ultralytics_version or tr("export.not_available")
-        )
+        self._ultralytics_label.setText(self._env.ultralytics_version or tr("export.not_available"))
         if self._env.tensorrt_available:
-            self._tensorrt_label.setText(
-                self._env.tensorrt_version or tr("export.not_available")
-            )
+            self._tensorrt_label.setText(self._env.tensorrt_version or tr("export.not_available"))
         else:
             self._tensorrt_label.setText(tr("export.not_available"))
 
@@ -303,7 +320,9 @@ class ModelExportPage(QWidget):
 
         self._export_onnx_btn.setEnabled(has_project and has_model)
         self._export_trt_btn.setEnabled(
-            has_project and has_model and tensorrt_ok
+            has_project
+            and has_model
+            and tensorrt_ok
             and not (self._int8_radio.isChecked() and not self._calib_dir_edit.text().strip())
         )
         self._benchmark_btn.setEnabled(has_project)
@@ -365,13 +384,11 @@ class ModelExportPage(QWidget):
             return
 
         if task_type == "export_tensorrt" and not self._env.tensorrt_available:
-            QMessageBox.warning(
-                self, tr("app.warning"), tr("export.tensorrt_unavailable"))
+            QMessageBox.warning(self, tr("app.warning"), tr("export.tensorrt_unavailable"))
             return
 
         if self._int8_radio.isChecked() and not self._calib_dir_edit.text().strip():
-            QMessageBox.warning(
-                self, tr("app.warning"), tr("export.int8_needs_calibration"))
+            QMessageBox.warning(self, tr("app.warning"), tr("export.int8_needs_calibration"))
             return
 
         precision = self._get_selected_precision()
@@ -434,6 +451,7 @@ class ModelExportPage(QWidget):
 
     def _get_output_dir(self) -> str:
         import tempfile
+
         pid = self._get_project_id()
         return os.path.join(tempfile.gettempdir(), "copper_exports", pid)
 
@@ -458,3 +476,9 @@ class ModelExportPage(QWidget):
         self._status_label.setText(tr("export.status_failed"))
         self._refresh_artifacts()
         QMessageBox.critical(self, tr("app.error"), err)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._status_label.setStyleSheet(f"color: {c.TEXT_SECONDARY};")
+

@@ -1,39 +1,30 @@
 """Tests for extended V6 DefectEvent fields."""
 import json
 import os
-import tempfile
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import core.storage
-    import importlib
-    importlib.reload(core.storage)
-    core.storage.init_db()
+@pytest.fixture
+def ctx():
+    """Create prerequisite customer -> project -> spec."""
     from core.customer import create_customer
     from core.project import create_project
     from core.product_spec import create_product_spec
     c = create_customer("TestCorp", "TC")
     p = create_project(c.customer_id, "TestProject")
     s = create_product_spec(p.project_id, "TestSpec", "铜", "管")
-    yield {"customer": c, "project": p, "spec": s}
-    import shutil
-    shutil.rmtree(tmp, ignore_errors=True)
+    return {"customer": c, "project": p, "spec": s}
 
 
-def test_record_ng_event_with_v6_fields(setup_db, tmp_path):
+def test_record_ng_event_with_v6_fields(ctx, tmp_path):
     from core.production_event import record_ng_event, list_defect_events
     import numpy as np
     img = (np.random.rand(100, 100, 3) * 255).astype("uint8")
 
     evt = record_ng_event(
-        project_id=setup_db["project"].project_id,
-        spec_id=setup_db["spec"].spec_id,
+        project_id=ctx["project"].project_id,
+        spec_id=ctx["spec"].spec_id,
         camera_id="CAM_01",
         image=img,
         output_root=str(tmp_path),
@@ -46,14 +37,14 @@ def test_record_ng_event_with_v6_fields(setup_db, tmp_path):
     assert evt.position_meter == 12.345
 
     # Verify from DB
-    events = list_defect_events(project_id=setup_db["project"].project_id)
+    events = list_defect_events(project_id=ctx["project"].project_id)
     assert len(events) == 1
     assert events[0].model_version == "model_v001"
     assert events[0].defect_type == "scratch"
     assert events[0].position_meter == 12.345
 
 
-def test_record_ng_event_with_prediction_autofill(setup_db, tmp_path):
+def test_record_ng_event_with_prediction_autofill(ctx, tmp_path):
     from core.production_event import record_ng_event
     from core.schema import DetectionBox, ImagePrediction
     import numpy as np
@@ -63,7 +54,7 @@ def test_record_ng_event_with_prediction_autofill(setup_db, tmp_path):
     pred = ImagePrediction(image_name="test.jpg", detections=[det])
 
     evt = record_ng_event(
-        project_id=setup_db["project"].project_id,
+        project_id=ctx["project"].project_id,
         image=img,
         prediction=pred,
         output_root=str(tmp_path),
@@ -73,14 +64,14 @@ def test_record_ng_event_with_prediction_autofill(setup_db, tmp_path):
     assert evt.defect_type == "pit"
 
 
-def test_record_ng_event_saves_under_camera_directory(setup_db, tmp_path):
+def test_record_ng_event_saves_under_camera_directory(ctx, tmp_path):
     from core.production_event import record_ng_event
     import numpy as np
 
     img = (np.random.rand(16, 16, 3) * 255).astype("uint8")
     evt = record_ng_event(
-        project_id=setup_db["project"].project_id,
-        spec_id=setup_db["spec"].spec_id,
+        project_id=ctx["project"].project_id,
+        spec_id=ctx["spec"].spec_id,
         batch_id="run_001",
         camera_id="CAM_02",
         image=img,
@@ -95,7 +86,7 @@ def test_record_ng_event_saves_under_camera_directory(setup_db, tmp_path):
     assert os.path.isfile(evt.ng_image_path)
 
 
-def test_record_ng_event_writes_v7_defect_files(setup_db, tmp_path):
+def test_record_ng_event_writes_v7_defect_files(ctx, tmp_path):
     from core.production_event import record_ng_event
     from core.schema import DetectionBox, ImagePrediction
     import json
@@ -115,8 +106,8 @@ def test_record_ng_event_writes_v7_defect_files(setup_db, tmp_path):
     pred = ImagePrediction(image_name="tile.png", detections=[det])
 
     record_ng_event(
-        project_id=setup_db["project"].project_id,
-        spec_id=setup_db["spec"].spec_id,
+        project_id=ctx["project"].project_id,
+        spec_id=ctx["spec"].spec_id,
         camera_id="CAM_01",
         image=img,
         prediction=pred,

@@ -1,4 +1,5 @@
 """Base worker with standardized signals for background tasks."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal

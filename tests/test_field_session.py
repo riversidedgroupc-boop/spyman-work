@@ -1,31 +1,14 @@
 """Tests for core.field_session — FieldSession CRUD operations."""
 from __future__ import annotations
 
-import os
-import shutil
-import tempfile
-
 import pytest
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "test.db")
-    os.environ["COPPER_VISION_DB_PATH"] = db_path
-    import importlib
-    import core.storage
-    importlib.reload(core.storage)
-    core.storage.init_db()
-    yield
-    shutil.rmtree(tmp, ignore_errors=True)
 
 
 @pytest.fixture
 def ctx():
     from core.customer import create_customer
-    from core.project import create_project
     from core.product_spec import create_product_spec
+    from core.project import create_project
     c = create_customer("FS Test Co", "FST")
     p = create_project(c.customer_id, "FS Test Proj")
     s = create_product_spec(p.project_id, "FS Spec", material="铜", geometry_type="管")
@@ -35,16 +18,15 @@ def ctx():
         "spec_id": s.spec_id,
     }
 
-
 from core.field_session import (  # noqa: E402
     FieldSession,
     create_field_session,
+    delete_field_session,
+    delete_field_session_cascade,
     get_field_session,
     list_field_sessions,
     update_field_session,
-    delete_field_session,
 )
-
 
 # ── Dataclass ──────────────────────────────────────────────────────
 
@@ -56,7 +38,6 @@ def test_field_session_requires_project_id():
             spec_id="SPEC_01",
         )
 
-
 def test_field_session_rejects_invalid_type(ctx):
     with pytest.raises(ValueError, match="session_type"):
         FieldSession(
@@ -65,7 +46,6 @@ def test_field_session_rejects_invalid_type(ctx):
             spec_id=ctx["spec_id"],
             session_type="invalid_type",
         )
-
 
 def test_field_session_defaults(ctx):
     s = FieldSession(
@@ -78,7 +58,6 @@ def test_field_session_defaults(ctx):
     assert s.hardware_snapshot == "{}"
     assert s.acquisition_config_snapshot == "{}"
     assert s.notes == ""
-
 
 def test_field_session_to_dict_round_trip(ctx):
     s = FieldSession(
@@ -97,7 +76,6 @@ def test_field_session_to_dict_round_trip(ctx):
     assert s2.status == "in_progress"
     assert s2.notes == "test session"
 
-
 # ── CRUD ───────────────────────────────────────────────────────────
 
 def test_create_and_get(ctx):
@@ -111,7 +89,6 @@ def test_create_and_get(ctx):
     assert fetched.project_id == ctx["project_id"]
     assert fetched.spec_id == ctx["spec_id"]
 
-
 def test_create_with_session_type(ctx):
     s = create_field_session(
         project_id=ctx["project_id"],
@@ -121,7 +98,6 @@ def test_create_with_session_type(ctx):
     )
     assert s.session_type == "anomaly_exploration"
     assert s.notes == "finding unknown defects"
-
 
 def test_list_sessions(ctx):
     from core.product_spec import create_product_spec
@@ -141,6 +117,22 @@ def test_list_sessions(ctx):
     assert len(proj_b) >= 2
     assert all(s.project_id == p2.project_id for s in proj_b)
 
+def test_list_sessions_filters_by_spec(ctx):
+    from core.product_spec import create_product_spec
+
+    other_spec = create_product_spec(
+        ctx["project_id"],
+        "FS Other Spec",
+        material="copper",
+        geometry_type="tube",
+    )
+
+    keep = create_field_session(project_id=ctx["project_id"], spec_id=ctx["spec_id"])
+    create_field_session(project_id=ctx["project_id"], spec_id=other_spec.spec_id)
+
+    sessions = list_field_sessions(project_id=ctx["project_id"], spec_id=ctx["spec_id"])
+
+    assert [s.field_session_id for s in sessions] == [keep.field_session_id]
 
 def test_update_status(ctx):
     s = create_field_session(
@@ -154,11 +146,9 @@ def test_update_status(ctx):
     fetched = get_field_session(s.field_session_id)
     assert fetched.status == "completed"
 
-
 def test_update_nonexistent():
     result = update_field_session("FLD_NOPE", status="completed")
     assert result is None
-
 
 def test_delete(ctx):
     s = create_field_session(
@@ -167,10 +157,50 @@ def test_delete(ctx):
     delete_field_session(s.field_session_id)
     assert get_field_session(s.field_session_id) is None
 
-
 def test_delete_nonexistent_does_not_crash():
     delete_field_session("FLD_NOPE")
 
+def test_delete_field_session_cascade_removes_reviews(ctx):
+    from core.anomaly_review import create_anomaly_review, get_anomaly_review
+
+    s = create_field_session(project_id=ctx["project_id"], spec_id=ctx["spec_id"])
+    review = create_anomaly_review(field_session_id=s.field_session_id, anomaly_score=0.8)
+
+    delete_field_session_cascade(s.field_session_id)
+
+    assert get_anomaly_review(review.review_id) is None
+    assert get_field_session(s.field_session_id) is None
+
+def test_delete_field_session_cascade_removes_hybrid_retest_rows(ctx):
+    from core.storage import fetch_all, insert
+
+    s = create_field_session(project_id=ctx["project_id"], spec_id=ctx["spec_id"])
+    insert(
+        "hybrid_retest_runs",
+        {
+            "run_id": "HRR_test",
+            "project_id": ctx["project_id"],
+            "spec_id": ctx["spec_id"],
+            "field_session_id": s.field_session_id,
+            "image_dir": "images",
+            "status": "completed",
+        },
+    )
+    insert(
+        "hybrid_retest_items",
+        {
+            "item_id": "HRI_test",
+            "run_id": "HRR_test",
+            "image_path": "image.png",
+            "final_decision": "UNKNOWN",
+        },
+    )
+
+    delete_field_session_cascade(s.field_session_id)
+
+    assert fetch_all("hybrid_retest_items", where="run_id = ?", params=("HRR_test",)) == []
+    assert fetch_all("hybrid_retest_runs", where="run_id = ?", params=("HRR_test",)) == []
+    assert get_field_session(s.field_session_id) is None
 
 def test_update_rejects_invalid_session_type(ctx):
     """P1.2: update must re-validate and reject illegal values."""
@@ -179,7 +209,6 @@ def test_update_rejects_invalid_session_type(ctx):
     )
     with pytest.raises(ValueError, match="session_type"):
         update_field_session(s.field_session_id, session_type="invalid_type")
-
 
 # ── All valid session types ─────────────────────────────────────────
 

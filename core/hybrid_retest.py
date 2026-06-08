@@ -6,6 +6,7 @@ UNKNOWN/NEEDS_REVIEW/SUSPECT results back to the anomaly review queue.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -18,6 +19,9 @@ from core.hybrid_strategy import FusionConfig, HybridFusionEngine
 from core.id_utils import generate_id
 from core.model_version import get_model_version
 from core.storage import fetch_all, insert
+# NOTE: These imports from src/ represent a legitimate dependency:
+# core/ evaluation modules use src/ fusion types as the canonical domain model.
+# See docs/architecture.md for rationale.
 from src.fusion.decision_types import (
     AnomalyResult,
     BBoxPrediction,
@@ -391,8 +395,8 @@ def run_hybrid_retest(
                 "ended_at": ended_at,
                 "updated_at": ended_at,
             }, id_column="run_id")
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.error("Failed to mark run %s as failed: %s", run_id, exc)
         raise
 
 

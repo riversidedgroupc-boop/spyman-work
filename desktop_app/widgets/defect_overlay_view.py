@@ -1,4 +1,5 @@
 """ImageViewer with defect bounding box and label overlay."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRectF
@@ -6,10 +7,15 @@ from PySide6.QtCore import Qt, QRectF
 from desktop_app.i18n import tr, bind
 from PySide6.QtGui import QColor, QPen, QFont
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QCheckBox, QHBoxLayout, QLabel,
+    QWidget,
+    QVBoxLayout,
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
 )
 
 from desktop_app.widgets.image_viewer import ImageViewer
+from desktop_app.theme_manager import ThemeManager
 
 # Default per-class colors
 CLASS_COLORS = [
@@ -35,6 +41,7 @@ class DefectOverlayView(QWidget):
         self._show_boxes = True
         self._overlay_items: list = []
         self._build_ui()
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -52,7 +59,7 @@ class DefectOverlayView(QWidget):
         ctrl.addWidget(self._show_cb)
         self._count_label = QLabel()
         bind(self._count_label, "defect.detection_count", count=0)
-        self._count_label.setStyleSheet("color: #B0B0B0; font-size: 11px;")
+        self._count_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 11px;")
         ctrl.addWidget(self._count_label)
         ctrl.addStretch()
         layout.addLayout(ctrl)
@@ -106,8 +113,8 @@ class DefectOverlayView(QWidget):
             self._overlay_items.append(rect_item)
 
             # Label
-            class_name = getattr(det, 'class_name', '') or ''
-            confidence = getattr(det, 'confidence', 0.0) or 0.0
+            class_name = getattr(det, "class_name", "") or ""
+            confidence = getattr(det, "confidence", 0.0) or 0.0
             label_text = f"{class_name} {confidence:.2f}"
             text_item = scene.addText(label_text)
             text_item.setDefaultTextColor(color)
@@ -132,3 +139,8 @@ class DefectOverlayView(QWidget):
 
     def fit_to_window(self) -> None:
         self._viewer.fit_to_window()
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._count_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")

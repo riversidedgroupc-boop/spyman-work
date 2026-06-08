@@ -113,20 +113,24 @@ def list_backups(backup_dir: str | None = None) -> list[BackupMeta]:
     return backups
 
 
-def restore_backup(backup_id: str, backup_dir: str | None = None) -> list[str]:
+def restore_backup(
+    backup_id: str,
+    backup_dir: str | None = None,
+    restore_root: str | None = None,
+) -> list[str]:
     dest_dir = backup_dir or _default_backup_dir()
     zip_path = os.path.join(dest_dir, f"{backup_id}.zip")
     if not os.path.isfile(zip_path):
         raise FileNotFoundError(f"Backup not found: {zip_path}")
 
-    root = _project_root()
+    root = restore_root or _project_root()
     root_abs = os.path.abspath(root)
     restored: list[str] = []
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
             target = _safe_restore_target(root_abs, member)
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            zf.extract(member, root)
+            zf.extract(member, root_abs)
             restored.append(member)
     return restored
 
@@ -222,7 +226,7 @@ def _load_meta(meta_path: str) -> BackupMeta | None:
         with open(meta_path, encoding="utf-8") as f:
             data = json.load(f)
         return BackupMeta(**data)
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         return None
 
 
@@ -235,5 +239,5 @@ def _audit(action: str, detail: str) -> None:
         from core.log_manager import LogManager
 
         LogManager.instance().log_audit(action, detail)
-    except Exception:
+    except ImportError:
         pass

@@ -1,0 +1,22 @@
+{
+  "focus_units": [
+    {
+      "camera_id": "CAM1",
+      "stage_id": "Z_STAGE_1",
+      "light_id": "LIGHT_1",
+      "enabled": true
+    },
+    {
+      "camera_id": "CAM2",
+      "stage_id": "Z_STAGE_2",
+      "light_id": "LIGHT_2",
+      "enabled": true
+    },
+    {
+      "camera_id": "CAM3",
+      "stage_id": "Z_STAGE_3",
+      "light_id": "LIGHT_3",
+      "enabled": true
+    }
+  ]
+}

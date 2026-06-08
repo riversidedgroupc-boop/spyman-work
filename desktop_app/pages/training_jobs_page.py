@@ -1,10 +1,18 @@
 """Training jobs page — list jobs, view logs."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QHeaderView, QSplitter, QMessageBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QHeaderView,
+    QSplitter,
+    QMessageBox,
 )
 
 from core.training_job import list_training_jobs, delete_training_job
@@ -32,13 +40,26 @@ class TrainingJobsPage(QWidget):
         btn_layout.addWidget(refresh_btn)
         del_btn = QPushButton()
         bind(del_btn, "app.delete")
-        del_btn.setObjectName("dangerBtn"); del_btn.clicked.connect(self._delete_job)
-        btn_layout.addWidget(del_btn); btn_layout.addStretch()
+        del_btn.setObjectName("dangerBtn")
+        del_btn.clicked.connect(self._delete_job)
+        btn_layout.addWidget(del_btn)
+        btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self._table = QTableWidget(0, 8)
-        self._table.setHorizontalHeaderLabels([tr("jobs.col_id"), tr("jobs.col_name"), tr("jobs.col_model"), tr("jobs.col_dataset"), tr("app.status"), tr("jobs.col_start"), tr("jobs.col_end"), tr("jobs.col_best")])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("jobs.col_id"),
+                tr("jobs.col_name"),
+                tr("jobs.col_model"),
+                tr("jobs.col_dataset"),
+                tr("app.status"),
+                tr("jobs.col_start"),
+                tr("jobs.col_end"),
+                tr("jobs.col_best"),
+            ]
+        )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -50,9 +71,22 @@ class TrainingJobsPage(QWidget):
 
     def _refresh_text(self, lang: str = "") -> None:
         """Re-set table headers on language change."""
-        self._table.setHorizontalHeaderLabels([tr("jobs.col_id"), tr("jobs.col_name"), tr("jobs.col_model"), tr("jobs.col_dataset"), tr("app.status"), tr("jobs.col_start"), tr("jobs.col_end"), tr("jobs.col_best")])
+        self._table.setHorizontalHeaderLabels(
+            [
+                tr("jobs.col_id"),
+                tr("jobs.col_name"),
+                tr("jobs.col_model"),
+                tr("jobs.col_dataset"),
+                tr("app.status"),
+                tr("jobs.col_start"),
+                tr("jobs.col_end"),
+                tr("jobs.col_best"),
+            ]
+        )
 
-    def showEvent(self, event): super().showEvent(event); self._refresh()
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._refresh()
 
     def _refresh(self):
         pid = self._ctx.current_project_id
@@ -70,8 +104,13 @@ class TrainingJobsPage(QWidget):
 
     def _delete_job(self):
         row = self._table.currentRow()
-        if row < 0: return
+        if row < 0:
+            return
         jid = self._table.item(row, 0).text()
-        if QMessageBox.question(self, tr("app.confirm_delete"), tr("jobs.delete_confirm", id=jid)) == QMessageBox.StandardButton.Yes:
-            delete_training_job(jid); self._refresh()
+        if (
+            QMessageBox.question(self, tr("app.confirm_delete"), tr("jobs.delete_confirm", id=jid))
+            == QMessageBox.StandardButton.Yes
+        ):
+            delete_training_job(jid)
+            self._refresh()
             self.data_changed.emit()

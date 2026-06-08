@@ -1,4 +1,5 @@
 """Interactive bbox annotation widget — mouse drag to draw, right-click to delete."""
+
 from __future__ import annotations
 
 import os
@@ -6,21 +7,45 @@ from typing import Any
 
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF
 from PySide6.QtGui import (
-    QColor, QPen, QFont, QPainter, QPixmap, QWheelEvent, QMouseEvent,
-    QAction, QCursor,
+    QColor,
+    QPen,
+    QFont,
+    QPainter,
+    QPixmap,
+    QWheelEvent,
+    QMouseEvent,
+    QAction,
+    QCursor,
 )
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGraphicsView, QGraphicsScene,
-    QGraphicsPixmapItem, QGraphicsRectItem, QComboBox, QPushButton, QLabel,
-    QMenu, QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
+    QComboBox,
+    QPushButton,
+    QLabel,
+    QMenu,
+    QApplication,
 )
 
 from desktop_app.label_config import load_label_options, LabelOption
+from desktop_app.i18n import tr, I18nManager
+from desktop_app.theme_manager import ThemeManager
 
 CLASS_COLORS = [
-    QColor("#FF4444"), QColor("#44FF44"), QColor("#4488FF"),
-    QColor("#FFAA00"), QColor("#FF44FF"), QColor("#00CCCC"),
-    QColor("#FFFF44"), QColor("#FF8888"), QColor("#88FF88"),
+    QColor("#FF4444"),
+    QColor("#44FF44"),
+    QColor("#4488FF"),
+    QColor("#FFAA00"),
+    QColor("#FF44FF"),
+    QColor("#00CCCC"),
+    QColor("#FFFF44"),
+    QColor("#FF8888"),
+    QColor("#88FF88"),
     QColor("#8888FF"),
 ]
 
@@ -110,7 +135,7 @@ class _AnnotationScene(QGraphicsScene):
             idx = item.data(0)  # bbox index
             if self._bbox_right_click_callback:
                 menu = QMenu()
-                delete_action = menu.addAction("删除此框")
+                delete_action = menu.addAction(tr("bbox.delete_bbox"))
                 chosen = menu.exec(event.screenPos())
                 if chosen == delete_action:
                     self._bbox_right_click_callback(idx)
@@ -137,7 +162,9 @@ class BboxAnnotationWidget(QWidget):
         # State
         self._image_path: str = ""
         self._pixmap_item: QGraphicsPixmapItem | None = None
-        self._bboxes: list[dict] = []  # normalized: class_id, class_name, x_center, y_center, width, height
+        self._bboxes: list[
+            dict
+        ] = []  # normalized: class_id, class_name, x_center, y_center, width, height
         self._overlay_items: list[QGraphicsRectItem] = []
         self._label_items: list[Any] = []
         self._draw_mode = True
@@ -149,13 +176,13 @@ class BboxAnnotationWidget(QWidget):
         self._refresh_class_options()
 
         self._setup_ui()
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _refresh_class_options(self) -> None:
         """Reload label options, filtering out background labels."""
         all_opts = load_label_options()
         self._class_options = [
-            o for o in all_opts
-            if o.value.upper() not in BACKGROUND_VALUES and o.value.strip()
+            o for o in all_opts if o.value.upper() not in BACKGROUND_VALUES and o.value.strip()
         ]
         if not self._class_options:
             self._class_options = all_opts  # fallback
@@ -185,26 +212,26 @@ class BboxAnnotationWidget(QWidget):
         ctrl = QHBoxLayout()
         ctrl.setSpacing(6)
 
-        ctrl.addWidget(QLabel("类别:"))
+        ctrl.addWidget(QLabel(tr("bbox.filter_label")))
         self._class_combo = QComboBox()
         self._class_combo.setMinimumWidth(120)
         self._rebuild_class_combo()
         ctrl.addWidget(self._class_combo)
 
-        self._draw_mode_btn = QPushButton("绘制模式")
+        self._draw_mode_btn = QPushButton(tr("bbox.draw_mode"))
         self._draw_mode_btn.setCheckable(True)
         self._draw_mode_btn.setChecked(True)
         self._draw_mode_btn.toggled.connect(self._on_draw_mode_toggled)
         self._draw_mode_btn.setStyleSheet(
-            "QPushButton:checked { background-color: #4CAF50; color: white; }"
+            f"QPushButton:checked {{ background-color: {ThemeManager.current().SUCCESS}; color: white; }}"
         )
         ctrl.addWidget(self._draw_mode_btn)
 
-        self._clear_btn = QPushButton("清除全部")
+        self._clear_btn = QPushButton(tr("bbox.clear_all"))
         self._clear_btn.clicked.connect(self.clear_bboxes)
         ctrl.addWidget(self._clear_btn)
 
-        self._save_btn = QPushButton("保存")
+        self._save_btn = QPushButton(tr("bbox.save"))
         self._save_btn.setObjectName("primaryBtn")
         self._save_btn.clicked.connect(self.save_to_file)
         ctrl.addWidget(self._save_btn)
@@ -212,7 +239,7 @@ class BboxAnnotationWidget(QWidget):
         ctrl.addStretch()
 
         self._stats_label = QLabel("Bboxes: 0")
-        self._stats_label.setStyleSheet("color: #888; font-size: 11px;")
+        self._stats_label.setStyleSheet(f"color: {ThemeManager.current().TEXT_SECONDARY}; font-size: 11px;")
         ctrl.addWidget(self._stats_label)
         layout.addLayout(ctrl)
 
@@ -279,11 +306,11 @@ class BboxAnnotationWidget(QWidget):
         if checked:
             self._view.setDragMode(QGraphicsView.DragMode.NoDrag)
             self._view.setCursor(QCursor(Qt.CursorShape.CrossCursor))
-            self._draw_mode_btn.setText("绘制模式 (ON)")
+            self._draw_mode_btn.setText(tr("bbox.draw_mode_on"))
         else:
             self._view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self._view.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-            self._draw_mode_btn.setText("绘制模式 (OFF)")
+            self._draw_mode_btn.setText(tr("bbox.draw_mode_off"))
 
     # ------------------------------------------------------------------
     # Bbox Drawing Callbacks
@@ -410,7 +437,7 @@ class BboxAnnotationWidget(QWidget):
             )
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + ("\n" if lines else ""))
-        self._stats_label.setStyleSheet("color: #4CAF50; font-size: 11px;")
+        self._stats_label.setStyleSheet(f"color: {ThemeManager.current().SUCCESS}; font-size: 11px;")
         self._stats_label.setText(f"Saved: {txt_path}")
 
     def load_from_file(self) -> None:
@@ -442,15 +469,17 @@ class BboxAnnotationWidget(QWidget):
                     if class_id < len(self._class_options):
                         class_name = self._class_options[class_id].value
                         color = self._class_options[class_id].color
-                    self._bboxes.append({
-                        "class_id": class_id,
-                        "class_name": class_name,
-                        "x_center": x_center,
-                        "y_center": y_center,
-                        "width": width,
-                        "height": height,
-                        "color": color,
-                    })
+                    self._bboxes.append(
+                        {
+                            "class_id": class_id,
+                            "class_name": class_name,
+                            "x_center": x_center,
+                            "y_center": y_center,
+                            "width": width,
+                            "height": height,
+                            "color": color,
+                        }
+                    )
         except Exception:
             pass
 
@@ -510,3 +539,11 @@ class BboxAnnotationWidget(QWidget):
         super().resizeEvent(event)
         if self._info_label and self._pixmap_item:
             self._info_label.move(8, self._view.height() - self._info_label.height() - 8)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._draw_mode_btn.setStyleSheet(
+            f"QPushButton:checked {{ background-color: {c.SUCCESS}; color: white; }}"
+        )
+        self._stats_label.setStyleSheet(f"color: {c.TEXT_SECONDARY}; font-size: 11px;")

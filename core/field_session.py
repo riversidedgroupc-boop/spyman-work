@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core.id_utils import generate_id
-from core.storage import delete, fetch_all, fetch_one, insert, update
+from core.storage import delete, fetch_all, fetch_one, get_connection, insert, update
 
 
 @dataclass
@@ -94,11 +94,24 @@ def get_field_session(field_session_id: str) -> FieldSession | None:
     return FieldSession.from_dict(row) if row else None
 
 
-def list_field_sessions(project_id: str | None = None) -> list[FieldSession]:
+def list_field_sessions(
+    project_id: str | None = None,
+    spec_id: str | None = None,
+) -> list[FieldSession]:
+    conditions: list[str] = []
+    params: list[str] = []
     if project_id:
-        rows = fetch_all("field_sessions", where="project_id = ? ORDER BY created_at DESC", params=(project_id,))
-    else:
-        rows = fetch_all("field_sessions", where="1 ORDER BY created_at DESC")
+        conditions.append("project_id = ?")
+        params.append(project_id)
+    if spec_id:
+        conditions.append("spec_id = ?")
+        params.append(spec_id)
+    where = " AND ".join(conditions) if conditions else "1"
+    rows = fetch_all(
+        "field_sessions",
+        where=f"{where} ORDER BY created_at DESC",
+        params=tuple(params),
+    )
     return [FieldSession.from_dict(r) for r in rows]
 
 
@@ -117,3 +130,36 @@ def update_field_session(field_session_id: str, **kwargs) -> FieldSession | None
 
 def delete_field_session(field_session_id: str) -> None:
     delete("field_sessions", field_session_id, id_column="field_session_id")
+
+
+def delete_field_session_cascade(field_session_id: str) -> None:
+    """Delete one field session and DB rows that belong only to that session.
+
+    This deliberately does not remove image/model/dataset files from disk.
+    """
+    conn = get_connection()
+    try:
+        run_rows = conn.execute(
+            "SELECT run_id FROM hybrid_retest_runs WHERE field_session_id = ?",
+            (field_session_id,),
+        ).fetchall()
+        for row in run_rows:
+            conn.execute("DELETE FROM hybrid_retest_items WHERE run_id = ?", (row[0],))
+        conn.execute(
+            "DELETE FROM hybrid_retest_runs WHERE field_session_id = ?",
+            (field_session_id,),
+        )
+        conn.execute(
+            "DELETE FROM anomaly_reviews WHERE field_session_id = ?",
+            (field_session_id,),
+        )
+        conn.execute(
+            "DELETE FROM field_sessions WHERE field_session_id = ?",
+            (field_session_id,),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

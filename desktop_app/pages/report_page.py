@@ -1,18 +1,28 @@
 """Report page — generate project/batch/system reports in multiple formats."""
+
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLabel,
-    QPushButton, QProgressBar, QTextEdit, QMessageBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QComboBox,
+    QLabel,
+    QPushButton,
+    QProgressBar,
+    QTextEdit,
+    QMessageBox,
 )
 
 from core.product_spec import list_product_specs
+from core.project_workflow import derive_workflow_status
 from runtime.health_monitor import HealthMonitor
 from desktop_app.app_context import AppContext
 from desktop_app.i18n import tr, bind, I18nManager
-from desktop_app.workers.report_worker import ReportWorker, SUPPORTED_FORMATS
+from desktop_app.workers.report_worker import ReportWorker
 from desktop_app.constants import APP_VERSION
+from desktop_app.theme_manager import ThemeManager
 
 
 class ReportPage(QWidget):
@@ -24,6 +34,7 @@ class ReportPage(QWidget):
         self._worker: ReportWorker | None = None
         self._build_ui()
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -63,7 +74,7 @@ class ReportPage(QWidget):
         self._preview = QTextEdit()
         self._preview.setReadOnly(True)
         self._preview.setStyleSheet(
-            "background-color: #1E1E1E; color: #D4D4D4; font-family: Consolas; font-size: 12px;"
+            f"background-color: {ThemeManager.current().BG_INPUT}; color: {ThemeManager.current().TEXT_PRIMARY}; font-family: Consolas; font-size: 12px;"
         )
         layout.addWidget(self._preview, 1)
 
@@ -98,6 +109,11 @@ class ReportPage(QWidget):
                     context["morphology"] = s.geometry_type
                     context["line_speed"] = str(s.target_speed_mpm)
                     context["camera_count"] = str(s.camera_count)
+                # Include workflow status summary
+                wf = derive_workflow_status(pid)
+                context["workflow_state"] = wf.state.value
+                context["workflow_next_action"] = wf.next_action
+                context["workflow_details"] = wf.details
         elif rt == "system":
             context["health"] = HealthMonitor().get_health()
 
@@ -133,3 +149,9 @@ class ReportPage(QWidget):
     def _on_error(self, err):
         self._progress.setVisible(False)
         QMessageBox.critical(self, tr("report.error_title"), err)
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply inline styles after theme toggle."""
+        c = ThemeManager.current()
+        self._preview.setStyleSheet(f"background-color: {c.BG_INPUT}; color: {c.TEXT_PRIMARY}; font-family: Consolas; font-size: 12px;")
+

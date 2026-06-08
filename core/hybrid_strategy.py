@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# NOTE: These imports from src/ represent a legitimate dependency:
+# core/ evaluation modules use src/ fusion types as the canonical domain model.
+# See docs/architecture.md for rationale.
 from src.fusion.decision_types import (
     AnomalyResult,
     BBoxPrediction,

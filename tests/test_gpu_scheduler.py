@@ -1,7 +1,9 @@
 """Tests for GPUInferenceScheduler."""
-import time
 import numpy as np
 import pytest
+
+from tests import wait_for_condition
+
 from gpu_scheduler.scheduler import GPUInferenceScheduler
 from gpu_scheduler.model_pool import ModelEnginePool, ModelEngine
 from gpu_scheduler.priority_router import RoutingStrategy
@@ -125,7 +127,7 @@ def test_processes_tiles(scheduler_fixture):
     pool.push(make_tile("Cam_02", "B"))
 
     scheduler.start()
-    time.sleep(0.15)
+    wait_for_condition(lambda: scheduler.get_stats().total_tiles_processed >= 2, timeout=2.0)
     scheduler.stop()
 
     stats = scheduler.get_stats()
@@ -139,7 +141,9 @@ def test_cold_start_strategy(scheduler_fixture):
     pool.push(make_tile("Cam_01", "A"))
 
     scheduler.start()
-    time.sleep(0.15)
+    wait_for_condition(
+        lambda: scheduler._model_pool._engines["patchcore"].infer_count >= 1, timeout=2.0
+    )
     scheduler.stop()
 
     patchcore = scheduler._model_pool._engines["patchcore"]

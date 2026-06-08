@@ -1,4 +1,5 @@
 """Worker that watches directories for new images and copies them to a capture session."""
+
 from __future__ import annotations
 
 import hashlib
@@ -65,6 +66,7 @@ class FolderWatchWorker(BaseWorker):
 
                     try:
                         from PIL import Image
+
                         with Image.open(src) as img:
                             img.verify()
                     except Exception:

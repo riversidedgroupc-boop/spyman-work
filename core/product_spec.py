@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core.id_utils import generate_id
-from core.storage import delete, fetch_all, fetch_one, insert, update
+from core.storage import fetch_all, fetch_one, insert, update
 
 VALID_MATERIALS = [
     "铜", "铜合金", "铝", "铝合金", "不锈钢", "碳钢", "钛合金", "塑料", "复合材料", "其他",
@@ -176,4 +176,6 @@ def update_product_spec(spec_id: str, **kwargs) -> ProductSpec | None:
 
 
 def delete_product_spec(spec_id: str) -> None:
-    delete("product_specs", spec_id, "spec_id")
+    from core.project_cascade import delete_spec_cascade
+
+    delete_spec_cascade(spec_id)

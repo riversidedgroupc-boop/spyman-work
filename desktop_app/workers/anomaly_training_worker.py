@@ -1,4 +1,5 @@
 """Anomaly detection training worker — PatchCore coreset construction in background."""
+
 from __future__ import annotations
 
 import json
@@ -77,7 +78,8 @@ class AnomalyTrainingWorker(BaseWorker):
             )
 
         ok_images = [
-            f for f in os.listdir(train_good_dir)
+            f
+            for f in os.listdir(train_good_dir)
             if os.path.splitext(f)[1].lower() in {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
         ]
         if len(ok_images) < 10:
@@ -185,6 +187,9 @@ class AnomalyTrainingWorker(BaseWorker):
                 )
                 self.log_line.emit(f"Model version registered: {best_path}")
 
+                # Auto-update models.yaml so the trained model is used for inference
+                self._update_models_config(best_path)
+
         except NotImplementedError as e:
             # Trainer not implemented yet — this is expected in V6
             self.log_line.emit(f"PatchCore training not available: {e}")
@@ -194,6 +199,26 @@ class AnomalyTrainingWorker(BaseWorker):
                 notes=str(e),
             )
             raise
+
+    @staticmethod
+    def _update_models_config(model_path: str) -> None:
+        """Update configs/models.yaml to enable PatchCore with the trained model."""
+        import yaml
+
+        config_path = os.path.join("configs", "models.yaml")
+        if not os.path.isfile(config_path):
+            return
+
+        with open(config_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        patchcore = config.setdefault("patchcore", {})
+        patchcore["enabled"] = True
+        patchcore["mode"] = "statistical"
+        patchcore["model_path"] = model_path
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
     def _on_trainer_progress(self, percent: float, message: str = "") -> None:
         """Callback from trainer during coreset construction."""

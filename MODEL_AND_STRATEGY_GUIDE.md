@@ -528,7 +528,7 @@ YOLO 和异常检测都确认时才判 `NG`，只有一方触发则判 `SUSPECT`
 1. 启动应用：
 
 ```bash
-streamlit run app.py
+python main.py
 ```
 
 2. 左侧勾选 OpenCV，异常检测保持 mock。

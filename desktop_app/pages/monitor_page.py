@@ -1,13 +1,21 @@
 """Real-time performance monitor page — system and pipeline metrics dashboard."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QGridLayout,
-    QLabel, QProgressBar, QFrame,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QGridLayout,
+    QLabel,
+    QProgressBar,
+    QFrame,
 )
 
 from desktop_app.i18n import tr, I18nManager
+from desktop_app.theme_manager import ThemeManager
 
 
 def _fmt_pct(v: float) -> str:
@@ -44,7 +52,7 @@ class _GaugeWidget(QFrame):
         layout.setSpacing(2)
 
         self._label = QLabel(title)
-        self._label.setStyleSheet("color: #888; font-size: 11px;")
+        self._label.setObjectName("secondaryLabel")
         layout.addWidget(self._label)
 
         self._value = QLabel("—")
@@ -63,21 +71,27 @@ class _GaugeWidget(QFrame):
         pct = min(value, 100.0)
         self._bar.setValue(int(pct))
 
+        c = ThemeManager.current()
         if value >= self._crit_at:
             self._bar.setStyleSheet(
-                "QProgressBar { background: #333; border: none; } "
-                "QProgressBar::chunk { background: #f44336; border-radius: 2px; }"
+                f"QProgressBar {{ background: {c.BG_INPUT}; border: none; }} "
+                f"QProgressBar::chunk {{ background: {c.GAUGE_RED}; border-radius: 2px; }}"
             )
         elif value >= self._warn_at:
             self._bar.setStyleSheet(
-                "QProgressBar { background: #333; border: none; } "
-                "QProgressBar::chunk { background: #ff9800; border-radius: 2px; }"
+                f"QProgressBar {{ background: {c.BG_INPUT}; border: none; }} "
+                f"QProgressBar::chunk {{ background: {c.GAUGE_ORANGE}; border-radius: 2px; }}"
             )
         else:
             self._bar.setStyleSheet(
-                "QProgressBar { background: #333; border: none; } "
-                "QProgressBar::chunk { background: #4caf50; border-radius: 2px; }"
+                f"QProgressBar {{ background: {c.BG_INPUT}; border: none; }} "
+                f"QProgressBar::chunk {{ background: {c.GAUGE_GREEN}; border-radius: 2px; }}"
             )
+
+    def refresh_style(self) -> None:
+        """Re-apply label style after theme change."""
+        # label uses #secondaryLabel QSS — no action needed
+        pass
 
 
 class _InfoTile(QFrame):
@@ -90,7 +104,7 @@ class _InfoTile(QFrame):
         layout.setSpacing(2)
 
         self._label = QLabel(title)
-        self._label.setStyleSheet("color: #888; font-size: 11px;")
+        self._label.setObjectName("secondaryLabel")
         layout.addWidget(self._label)
 
         self._value = QLabel("—")
@@ -115,10 +129,12 @@ class MonitorPage(QWidget):
         self._timer.timeout.connect(self._refresh)
         self._timer.start(1000)
         I18nManager.instance().language_changed.connect(self._refresh_text)
+        ThemeManager.instance().theme_changed.connect(self._on_theme_changed)
 
     def _init_gpu(self) -> None:
         try:
             import pynvml
+
             pynvml.nvmlInit()
             self._nvml_available = True
             self._gpu_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -135,121 +151,121 @@ class MonitorPage(QWidget):
             return
 
         # --- System resources ---
-        sys_group = QGroupBox("系统资源")
-        sys_grid = QGridLayout(sys_group)
+        self._sys_group = QGroupBox(tr("monitor.sys_resources"))
+        sys_grid = QGridLayout(self._sys_group)
         sys_grid.setSpacing(8)
 
-        self._cpu_gauge = _GaugeWidget("CPU", "%", warn_at=70, crit_at=90)
+        self._cpu_gauge = _GaugeWidget(tr("monitor.cpu"), "%", warn_at=70, crit_at=90)
         sys_grid.addWidget(self._cpu_gauge, 0, 0)
 
-        self._ram_gauge = _GaugeWidget("内存", "%", warn_at=80, crit_at=90)
+        self._ram_gauge = _GaugeWidget(tr("monitor.memory"), "%", warn_at=80, crit_at=90)
         sys_grid.addWidget(self._ram_gauge, 0, 1)
 
-        self._gpu_gauge = _GaugeWidget("GPU", "%", warn_at=80, crit_at=95)
+        self._gpu_gauge = _GaugeWidget(tr("monitor.gpu"), "%", warn_at=80, crit_at=95)
         sys_grid.addWidget(self._gpu_gauge, 0, 2)
 
-        self._vram_gauge = _GaugeWidget("显存", "%", warn_at=80, crit_at=92)
+        self._vram_gauge = _GaugeWidget(tr("monitor.vram"), "%", warn_at=80, crit_at=92)
         sys_grid.addWidget(self._vram_gauge, 0, 3)
 
-        self._disk_gauge = _GaugeWidget("磁盘", "%", warn_at=80, crit_at=90)
+        self._disk_gauge = _GaugeWidget(tr("monitor.disk"), "%", warn_at=80, crit_at=90)
         sys_grid.addWidget(self._disk_gauge, 1, 0)
 
-        self._ram_used_tile = _InfoTile("内存占用")
+        self._ram_used_tile = _InfoTile(tr("monitor.ram_used"))
         sys_grid.addWidget(self._ram_used_tile, 1, 1)
 
-        self._vram_used_tile = _InfoTile("显存占用")
+        self._vram_used_tile = _InfoTile(tr("monitor.vram_used"))
         sys_grid.addWidget(self._vram_used_tile, 1, 2)
 
-        self._disk_free_tile = _InfoTile("磁盘剩余")
+        self._disk_free_tile = _InfoTile(tr("monitor.disk_free"))
         sys_grid.addWidget(self._disk_free_tile, 1, 3)
 
-        layout.addWidget(sys_group)
+        layout.addWidget(self._sys_group)
 
         # --- Pipeline ---
-        pipe_group = QGroupBox("流水线")
-        pipe_grid = QGridLayout(pipe_group)
+        self._pipe_group = QGroupBox(tr("monitor.pipeline"))
+        pipe_grid = QGridLayout(self._pipe_group)
         pipe_grid.setSpacing(8)
 
-        self._pool_depth = _InfoTile("图像池深度")
+        self._pool_depth = _InfoTile(tr("monitor.pool_depth"))
         pipe_grid.addWidget(self._pool_depth, 0, 0)
 
-        self._pool_usage = _GaugeWidget("池使用率", "%", warn_at=70, crit_at=90)
+        self._pool_usage = _GaugeWidget(tr("monitor.pool_usage"), "%", warn_at=70, crit_at=90)
         pipe_grid.addWidget(self._pool_usage, 0, 1)
 
-        self._tiles_dropped = _InfoTile("丢弃 Tile 数")
+        self._tiles_dropped = _InfoTile(tr("monitor.tiles_dropped"))
         pipe_grid.addWidget(self._tiles_dropped, 0, 2)
 
-        self._spi_value = _GaugeWidget("SPI 系统压力指数", "", warn_at=60, crit_at=85)
+        self._spi_value = _GaugeWidget(tr("monitor.spi_value"), "", warn_at=60, crit_at=85)
         pipe_grid.addWidget(self._spi_value, 0, 3)
 
-        self._infer_avg = _InfoTile("平均推理耗时")
+        self._infer_avg = _InfoTile(tr("monitor.infer_avg"))
         pipe_grid.addWidget(self._infer_avg, 1, 0)
 
-        self._infer_p95 = _InfoTile("P95 推理耗时")
+        self._infer_p95 = _InfoTile(tr("monitor.infer_p95"))
         pipe_grid.addWidget(self._infer_p95, 1, 1)
 
-        self._disk_level = _InfoTile("磁盘等级")
+        self._disk_level = _InfoTile(tr("monitor.disk_level"))
         pipe_grid.addWidget(self._disk_level, 1, 2)
 
-        self._writer_stats = _InfoTile("已写入图片")
+        self._writer_stats = _InfoTile(tr("monitor.writer_stats"))
         pipe_grid.addWidget(self._writer_stats, 1, 3)
 
-        layout.addWidget(pipe_group)
+        layout.addWidget(self._pipe_group)
 
         # --- SPI explanation ---
-        spi_group = QGroupBox("SPI 构成")
-        spi_layout = QHBoxLayout(spi_group)
+        self._spi_group = QGroupBox(tr("monitor.spi_breakdown"))
+        spi_layout = QHBoxLayout(self._spi_group)
         spi_layout.setSpacing(8)
 
-        self._spi_cam = _GaugeWidget("相机 (20%)", "%", warn_at=70, crit_at=85)
+        self._spi_cam = _GaugeWidget(tr("monitor.cam_weight"), "%", warn_at=70, crit_at=85)
         spi_layout.addWidget(self._spi_cam)
-        self._spi_cpu = _GaugeWidget("CPU (20%)", "%", warn_at=70, crit_at=85)
+        self._spi_cpu = _GaugeWidget(tr("monitor.cpu_weight"), "%", warn_at=70, crit_at=85)
         spi_layout.addWidget(self._spi_cpu)
-        self._spi_gpu = _GaugeWidget("GPU (30%)", "%", warn_at=70, crit_at=85)
+        self._spi_gpu = _GaugeWidget(tr("monitor.gpu_weight"), "%", warn_at=70, crit_at=85)
         spi_layout.addWidget(self._spi_gpu)
-        self._spi_mem = _GaugeWidget("内存 (15%)", "%", warn_at=70, crit_at=85)
+        self._spi_mem = _GaugeWidget(tr("monitor.mem_weight"), "%", warn_at=70, crit_at=85)
         spi_layout.addWidget(self._spi_mem)
-        self._spi_disk = _GaugeWidget("磁盘 (15%)", "%", warn_at=70, crit_at=85)
+        self._spi_disk = _GaugeWidget(tr("monitor.disk_weight"), "%", warn_at=70, crit_at=85)
         spi_layout.addWidget(self._spi_disk)
 
-        layout.addWidget(spi_group)
+        layout.addWidget(self._spi_group)
         layout.addStretch()
 
     def _build_compact_ui(self, layout: QVBoxLayout) -> None:
-        group = QGroupBox("实时性能监控")
-        grid = QGridLayout(group)
+        self._compact_group = QGroupBox(tr("monitor.compact_title"))
+        grid = QGridLayout(self._compact_group)
         grid.setSpacing(8)
 
-        self._cpu_gauge = _GaugeWidget("CPU", "%", warn_at=70, crit_at=90)
+        self._cpu_gauge = _GaugeWidget(tr("monitor.cpu"), "%", warn_at=70, crit_at=90)
         grid.addWidget(self._cpu_gauge, 0, 0)
-        self._ram_gauge = _GaugeWidget("内存", "%", warn_at=80, crit_at=90)
+        self._ram_gauge = _GaugeWidget(tr("monitor.memory"), "%", warn_at=80, crit_at=90)
         grid.addWidget(self._ram_gauge, 0, 1)
-        self._gpu_gauge = _GaugeWidget("GPU", "%", warn_at=80, crit_at=95)
+        self._gpu_gauge = _GaugeWidget(tr("monitor.gpu"), "%", warn_at=80, crit_at=95)
         grid.addWidget(self._gpu_gauge, 0, 2)
-        self._vram_gauge = _GaugeWidget("显存", "%", warn_at=80, crit_at=92)
+        self._vram_gauge = _GaugeWidget(tr("monitor.vram"), "%", warn_at=80, crit_at=92)
         grid.addWidget(self._vram_gauge, 0, 3)
-        self._disk_gauge = _GaugeWidget("磁盘", "%", warn_at=80, crit_at=90)
+        self._disk_gauge = _GaugeWidget(tr("monitor.disk"), "%", warn_at=80, crit_at=90)
         grid.addWidget(self._disk_gauge, 0, 4)
-        self._spi_value = _GaugeWidget("SPI", "", warn_at=60, crit_at=85)
+        self._spi_value = _GaugeWidget(tr("monitor.spi_value"), "", warn_at=60, crit_at=85)
         grid.addWidget(self._spi_value, 0, 5)
 
-        self._ram_used_tile = _InfoTile("内存占用")
+        self._ram_used_tile = _InfoTile(tr("monitor.ram_used"))
         grid.addWidget(self._ram_used_tile, 1, 0)
-        self._vram_used_tile = _InfoTile("显存占用")
+        self._vram_used_tile = _InfoTile(tr("monitor.vram_used"))
         grid.addWidget(self._vram_used_tile, 1, 1)
-        self._disk_free_tile = _InfoTile("磁盘剩余")
+        self._disk_free_tile = _InfoTile(tr("monitor.disk_free"))
         grid.addWidget(self._disk_free_tile, 1, 2)
-        self._spi_cpu = _GaugeWidget("CPU 权重", "%", warn_at=70, crit_at=85)
+        self._spi_cpu = _GaugeWidget(tr("monitor.cpu_weight"), "%", warn_at=70, crit_at=85)
         grid.addWidget(self._spi_cpu, 1, 3)
-        self._spi_gpu = _GaugeWidget("GPU 权重", "%", warn_at=70, crit_at=85)
+        self._spi_gpu = _GaugeWidget(tr("monitor.gpu_weight"), "%", warn_at=70, crit_at=85)
         grid.addWidget(self._spi_gpu, 1, 4)
-        self._spi_disk = _GaugeWidget("磁盘权重", "%", warn_at=70, crit_at=85)
+        self._spi_disk = _GaugeWidget(tr("monitor.disk_weight"), "%", warn_at=70, crit_at=85)
         grid.addWidget(self._spi_disk, 1, 5)
 
-        self._spi_cam = _GaugeWidget("相机", "%", warn_at=70, crit_at=85)
-        self._spi_mem = _GaugeWidget("内存权重", "%", warn_at=70, crit_at=85)
+        self._spi_cam = _GaugeWidget(tr("monitor.cam_weight"), "%", warn_at=70, crit_at=85)
+        self._spi_mem = _GaugeWidget(tr("monitor.mem_weight"), "%", warn_at=70, crit_at=85)
 
-        layout.addWidget(group)
+        layout.addWidget(self._compact_group)
 
     def _refresh(self):
         cpu_pct, ram_pct, ram_used_gb, ram_total_gb = self._sample_cpu()
@@ -267,23 +283,19 @@ class MonitorPage(QWidget):
         self._disk_free_tile.set_text(_fmt_gb(disk_free_gb))
 
         # SPI breakdown
-        self._spi_cam.update_value(0)   # not available without active pipeline
+        self._spi_cam.update_value(0)  # not available without active pipeline
         self._spi_cpu.update_value(cpu_pct)
         self._spi_gpu.update_value(gpu_pct)
-        self._spi_mem.update_value(ram_pct)
+        self._spi_mem.update_value(disk_pct)  # mem component uses disk for now
         self._spi_disk.update_value(disk_pct)
 
-        spi = (
-            cpu_pct * 0.20
-            + gpu_pct * 0.30
-            + ram_pct * 0.15
-            + disk_pct * 0.15
-        )
+        spi = cpu_pct * 0.20 + gpu_pct * 0.30 + ram_pct * 0.15 + disk_pct * 0.15
         self._spi_value.update_value(spi)
 
     def _sample_cpu(self) -> tuple:
         try:
             import psutil
+
             cpu = psutil.cpu_percent(interval=0)
             mem = psutil.virtual_memory()
             return cpu, mem.percent, mem.used / (1024**3), mem.total / (1024**3)
@@ -295,6 +307,7 @@ class MonitorPage(QWidget):
             return 0, 0, 0, 0
         try:
             import pynvml
+
             util = pynvml.nvmlDeviceGetUtilizationRates(self._gpu_handle)
             mem_info = pynvml.nvmlDeviceGetMemoryInfo(self._gpu_handle)
             vram_pct = mem_info.used / max(mem_info.total, 1) * 100
@@ -305,6 +318,7 @@ class MonitorPage(QWidget):
     def _sample_disk(self) -> tuple:
         try:
             import shutil
+
             usage = shutil.disk_usage(".")
             pct = usage.used / max(usage.total, 1) * 100
             return pct, usage.free / (1024**3)
@@ -312,4 +326,60 @@ class MonitorPage(QWidget):
             return 0, 0
 
     def _refresh_text(self, lang: str = "") -> None:
-        pass
+        """Update all gauge/tile titles and group box titles on language change."""
+        if not self._compact:
+            self._sys_group.setTitle(tr("monitor.sys_resources"))
+            self._pipe_group.setTitle(tr("monitor.pipeline"))
+            self._spi_group.setTitle(tr("monitor.spi_breakdown"))
+        else:
+            self._compact_group.setTitle(tr("monitor.compact_title"))
+
+        # Update gauge labels
+        for gauge, key in [
+            (self._cpu_gauge, "monitor.cpu"),
+            (self._ram_gauge, "monitor.memory"),
+            (self._gpu_gauge, "monitor.gpu"),
+            (self._vram_gauge, "monitor.vram"),
+            (self._disk_gauge, "monitor.disk"),
+        ]:
+            gauge._label.setText(tr(key))
+
+        # Update tile labels
+        for tile, key in [
+            (self._ram_used_tile, "monitor.ram_used"),
+            (self._vram_used_tile, "monitor.vram_used"),
+            (self._disk_free_tile, "monitor.disk_free"),
+        ]:
+            tile._label.setText(tr(key))
+
+        if not self._compact:
+            # Pipeline gauges
+            for gauge, key in [
+                (self._pool_usage, "monitor.pool_usage"),
+                (self._spi_value, "monitor.spi_value"),
+            ]:
+                gauge._label.setText(tr(key))
+            for tile, key in [
+                (self._pool_depth, "monitor.pool_depth"),
+                (self._tiles_dropped, "monitor.tiles_dropped"),
+                (self._infer_avg, "monitor.infer_avg"),
+                (self._infer_p95, "monitor.infer_p95"),
+                (self._disk_level, "monitor.disk_level"),
+                (self._writer_stats, "monitor.writer_stats"),
+            ]:
+                tile._label.setText(tr(key))
+
+            # SPI weights
+            for gauge, key in [
+                (self._spi_cam, "monitor.cam_weight"),
+                (self._spi_cpu, "monitor.cpu_weight"),
+                (self._spi_gpu, "monitor.gpu_weight"),
+                (self._spi_mem, "monitor.mem_weight"),
+                (self._spi_disk, "monitor.disk_weight"),
+            ]:
+                gauge._label.setText(tr(key))
+
+    def _on_theme_changed(self) -> None:
+        """Re-apply bar colors and label styles after theme toggle."""
+        # Trigger gauge updates to refresh bar colors
+        self._refresh()

@@ -1,9 +1,14 @@
 """Top project selector bar showing current customer/project/spec context."""
+
 from __future__ import annotations
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QComboBox, QLabel, QPushButton,
+    QWidget,
+    QHBoxLayout,
+    QComboBox,
+    QLabel,
+    QPushButton,
 )
 
 from core.customer import list_customers
@@ -18,6 +23,7 @@ class ProjectSelector(QWidget):
     customer_changed = Signal(str)
     project_changed = Signal(str)
     spec_changed = Signal(str)
+    refreshed = Signal()  # emitted after refresh() completes
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -76,6 +82,9 @@ class ProjectSelector(QWidget):
         if not self._ctx.current_customer_id and state.get("customer_id"):
             self._restore_from_state(state)
 
+        # Clear stale context if previously selected entities were deleted
+        self._validate_context()
+
         self._restoring = True
         self._building = True
         self._customer_combo.blockSignals(True)
@@ -109,6 +118,34 @@ class ProjectSelector(QWidget):
         self._spec_combo.blockSignals(False)
         self._building = False
         self._restoring = False
+        self.refreshed.emit()
+
+    def _validate_context(self) -> None:
+        """Clear stale ctx references when the underlying row was deleted."""
+        from core.storage import fetch_one
+
+        changed = False
+        if self._ctx.current_customer_id:
+            if not fetch_one("customers", self._ctx.current_customer_id):
+                self._ctx.clear_customer_context()
+                changed = True
+        if self._ctx.current_project_id:
+            if not fetch_one("projects", self._ctx.current_project_id, "project_id"):
+                self._ctx.clear_project_context()
+                changed = True
+        if self._ctx.current_spec_id:
+            if not fetch_one("product_specs", self._ctx.current_spec_id, "spec_id"):
+                self._ctx.clear_spec_context()
+                changed = True
+        if changed:
+            save_ui_state(
+                customer_id="",
+                customer_name="",
+                project_id="",
+                project_name="",
+                spec_id="",
+                spec_name="",
+            )
 
     def persist_current_selection(self) -> None:
         """Persist the currently visible selector state before the app exits."""
@@ -151,7 +188,8 @@ class ProjectSelector(QWidget):
             if spec is None and spec_name:
                 spec = next(
                     (
-                        s for s in specs
+                        s
+                        for s in specs
                         if s.product_name == spec_name
                         or f"{s.product_name} ({s.material}/{s.geometry_type})" == spec_name
                     ),
@@ -184,9 +222,13 @@ class ProjectSelector(QWidget):
         spec_id = self._spec_combo.currentData() or self._ctx.current_spec_id
         return {
             "customer_id": customer_id,
-            "customer_name": self._customer_combo.currentText() if customer_id else self._ctx.current_customer_name,
+            "customer_name": self._customer_combo.currentText()
+            if customer_id
+            else self._ctx.current_customer_name,
             "project_id": project_id,
-            "project_name": self._project_combo.currentText() if project_id else self._ctx.current_project_name,
+            "project_name": self._project_combo.currentText()
+            if project_id
+            else self._ctx.current_project_name,
             "spec_id": spec_id,
             "spec_name": self._spec_combo.currentText() if spec_id else self._ctx.current_spec_name,
         }

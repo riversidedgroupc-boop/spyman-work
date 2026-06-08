@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目工作台改造预览 — 流程引导式工作台</title>
+<style>
+  :root {
+    --primary: #0078D4;
+    --success: #107C10;
+    --warning: #FF8C00;
+    --error: #C42B1C;
+    --bg-main: #F5F5F5;
+    --bg-panel: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --border: #E0E0E0;
+    --done-bg: #E8F5E9;
+    --current-bg: #E3F2FD;
+    --blocked-bg: #FFF8E1;
+    --pending-bg: #FAFAFA;
+    --radius: 8px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 24px;
+  }
+
+  /* ── top overview bar ── */
+  .overview-bar {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .overview-item { display:flex; flex-direction:column; gap:2px; }
+  .overview-label { font-size:11px; color:var(--text-secondary); }
+  .overview-value { font-size:14px; font-weight:600; }
+  .overview-divider { width:1px; height:36px; background:var(--border); }
+  .overview-progress {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .progress-ring {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 3px solid var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: var(--primary);
+  }
+  .progress-label { font-size:11px; color:var(--text-secondary); }
+
+  /* ── main two-column ── */
+  .main-area {
+    display: flex;
+    gap: 12px;
+    min-height: 520px;
+  }
+
+  /* ── left: step list ── */
+  .step-list {
+    flex: 0 0 65%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+    border: 1px solid transparent;
+  }
+  .step-item:hover { background: #F0F0F0; }
+  .step-item.current {
+    background: var(--current-bg);
+    border-color: var(--primary);
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+  .step-item.done { background: var(--done-bg); }
+  .step-item.blocked { background: var(--blocked-bg); border-color: var(--warning); }
+  .step-item.pending { background: var(--pending-bg); }
+
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .done .step-num { background: var(--success); color: #fff; }
+  .current .step-num { background: var(--primary); color: #fff; }
+  .blocked .step-num { background: var(--warning); color: #fff; }
+  .pending .step-num { background: #E0E0E0; color: #999; }
+
+  .step-info { flex:1; min-width:0; }
+  .step-name { font-weight:600; font-size:13px; }
+  .step-purpose { font-size:11px; color:var(--text-secondary); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .step-criteria { font-size:11px; color:var(--text-secondary); }
+
+  .step-status-badge {
+    font-size:11px; padding:2px 8px; border-radius:10px;
+    flex-shrink: 0;
+  }
+  .done .step-status-badge { background:#C8E6C9; color:#2E7D32; }
+  .current .step-status-badge { background:#BBDEFB; color:#1565C0; }
+  .blocked .step-status-badge { background:#FFE0B2; color:#E65100; }
+  .pending .step-status-badge { background:#EEEEEE; color:#999; }
+
+  .step-arrow { font-size:16px; color:var(--primary); width:20px; text-align:center; flex-shrink:0; }
+
+  /* ── right: detail panel ── */
+  .detail-panel {
+    flex: 0 0 35%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .detail-title { font-size:15px; font-weight:700; }
+  .detail-section {}
+  .detail-section h4 {
+    font-size:12px; color:var(--text-secondary);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .detail-section p, .detail-section ol { font-size:13px; }
+  .detail-section ol { padding-left:20px; }
+  .detail-section ol li { margin-bottom:2px; }
+
+  .detail-missing {
+    background: #FFF3E0;
+    border-left: 3px solid var(--warning);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size:12px;
+    color: #E65100;
+  }
+
+  .btn-enter {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+  .btn-enter:hover { background: #106EBE; }
+  .btn-enter:disabled { background: #CCC; cursor: not-allowed; }
+
+  /* ── bottom hint ── */
+  .bottom-hint {
+    margin-top: 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size:12px;
+  }
+  .hint-icon { font-size:18px; }
+  .hint-text { flex:1; }
+  .hint-blocker { color: var(--warning); font-weight:600; }
+  .hint-action { color: var(--primary); font-weight:600; }
+
+  /* ── controls ── */
+  .scenario-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .scenario-tab {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .scenario-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .note {
+    font-size:11px; color:var(--text-secondary);
+    margin-top: 16px; border-top:1px solid var(--border); padding-top:12px;
+  }
+</style>
+</head>
+<body>
+
+<h2 style="font-size:16px; margin-bottom:4px;">项目工作台 — 流程引导式设计预览</h2>
+<p style="font-size:12px; color:var(--text-secondary); margin-bottom:16px;">
+  三个场景切换查看不同阶段的工作台形态
+</p>
+
+<!-- scenario switcher -->
+<div class="scenario-tabs" id="scenarioTabs">
+  <div class="scenario-tab active" onclick="showScenario('mid')">场景A：配置中（有项目有规格有设备）</div>
+  <div class="scenario-tab" onclick="showScenario('early')">场景B：刚接手（无规格）</div>
+  <div class="scenario-tab" onclick="showScenario('late')">场景C：后期（已训练模型）</div>
+</div>
+
+<!-- ═══ SCENARIO A: mid (3/8, 设备配置当前) ═══ -->
+<div id="scenario-mid">
+
+  <!-- top overview -->
+  <div class="overview-bar">
+    <div class="overview-item">
+      <span class="overview-label">客户</span>
+      <span class="overview-value">华东铜业</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">项目</span>
+      <span class="overview-value">铜管表面检测-一期</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">产品规格</span>
+      <span class="overview-value">Tube-25mm（铜/管）</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">当前阶段</span>
+      <span class="overview-value" style="color:var(--primary)">设备配置</span>
+    </div>
+    <div class="overview-progress">
+      <div class="progress-ring">3/8</div>
+      <span class="progress-label">完成度</span>
+    </div>
+  </div>
+
+  <!-- main content -->
+  <div class="main-area">
+
+    <!-- left: step list -->
+    <div class="step-list">
+
+      <!-- step 1: 项目配置 — done -->
+      <div class="step-item done" onclick="selectStep(this,1,'mid')">
+        <div class="step-num">✓</div>
+        <div class="step-info">
+          <div class="step-name">1. 项目配置</div>
+          <div class="step-purpose">建立客户、项目、产品规格关系</div>
+        </div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <!-- step 2: 设备配置 — current -->
+      <div class="step-item current active-step" onclick="selectStep(this,2,'mid')">
+        <div class="step-num">2</div>
+        <div class="step-info">
+          <div class="step-name">2. 设备配置</div>
+          <div class="step-purpose">配置相机、触发、采集参数</div>
+        </div>
+        <div class="step-status-badge">当前步骤</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <!-- step 3: 现场采集 — pending -->
+      <div class="step-item pending" onclick="selectStep(this,3,'mid')">
+        <div class="step-num">3</div>
+        <div class="step-info">
+          <div class="step-name">3. 现场采集</div>
+          <div class="step-purpose">采集真实 OK/NG 或待复核样本</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <!-- step 4-8 pending -->
+      <div class="step-item pending" onclick="selectStep(this,4,'mid')">
+        <div class="step-num">4</div>
+        <div class="step-info">
+          <div class="step-name">4. 样本复核</div>
+          <div class="step-purpose">确认样本标签、缺陷类型、标注质量</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending" onclick="selectStep(this,5,'mid')">
+        <div class="step-num">5</div>
+        <div class="step-info">
+          <div class="step-name">5. 模型训练</div>
+          <div class="step-purpose">训练无监督模型或 YOLO 检测模型</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending" onclick="selectStep(this,6,'mid')">
+        <div class="step-num">6</div>
+        <div class="step-info">
+          <div class="step-name">6. 联合检测</div>
+          <div class="step-purpose">使用模型执行现场检测或复测</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending" onclick="selectStep(this,7,'mid')">
+        <div class="step-num">7</div>
+        <div class="step-info">
+          <div class="step-name">7. 性能验证</div>
+          <div class="step-purpose">验证速度、准确率、稳定性</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending" onclick="selectStep(this,8,'mid')">
+        <div class="step-num">8</div>
+        <div class="step-info">
+          <div class="step-name">8. 报告交付</div>
+          <div class="step-purpose">输出测试结论和交付材料</div>
+        </div>
+        <div class="step-status-badge">待开始</div>
+      </div>
+    </div>
+
+    <!-- right: detail for step 2 (default selected) -->
+    <div class="detail-panel" id="detail-mid">
+      <div class="detail-title">设备配置</div>
+
+      <div class="detail-section">
+        <h4>用途</h4>
+        <p>配置当前产品规格所需的相机设备、触发方式和采集参数，为后续现场采集提供硬件基础。</p>
+      </div>
+
+      <div class="detail-section">
+        <h4>操作步骤</h4>
+        <ol>
+          <li>在相机管理中扫描并绑定相机设备。</li>
+          <li>在相机配置中为当前规格创建相机卡片。</li>
+          <li>设置触发模式、曝光、增益等参数。</li>
+          <li>使用预览和诊断确认图像质量。</li>
+        </ol>
+      </div>
+
+      <div class="detail-section">
+        <h4>完成标准</h4>
+        <p>当前规格下存在至少一个已启用的相机配置。</p>
+      </div>
+
+      <div class="detail-missing">
+        <strong>缺失项：</strong>当前规格（Tube-25mm）尚无相机配置。
+      </div>
+
+      <button class="btn-enter">进入设备配置</button>
+    </div>
+
+  </div>
+
+  <!-- bottom hint -->
+  <div class="bottom-hint">
+    <span class="hint-icon">💡</span>
+    <div class="hint-text">
+      <span class="hint-blocker">当前阻塞：</span>缺少相机配置，无法进入现场采集。
+      <span class="hint-action">推荐下一步：</span>进入设备配置，创建相机卡片。
+    </div>
+    <button class="btn-enter" style="font-size:11px; padding:6px 14px;">进入设备配置</button>
+  </div>
+</div>
+
+
+<!-- ═══ SCENARIO B: early (0/8, no spec yet) ═══ -->
+<div id="scenario-early" style="display:none">
+
+  <div class="overview-bar">
+    <div class="overview-item">
+      <span class="overview-label">客户</span>
+      <span class="overview-value">华东铜业</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">项目</span>
+      <span class="overview-value">铜管表面检测-一期</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">产品规格</span>
+      <span class="overview-value" style="color:var(--warning)">未选择</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">当前阶段</span>
+      <span class="overview-value" style="color:var(--primary)">项目配置</span>
+    </div>
+    <div class="overview-progress">
+      <div class="progress-ring" style="border-color:var(--warning); color:var(--warning);">0/8</div>
+      <span class="progress-label">完成度</span>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="step-list">
+
+      <div class="step-item current active-step">
+        <div class="step-num">1</div>
+        <div class="step-info">
+          <div class="step-name">1. 项目配置</div>
+          <div class="step-purpose">建立客户、项目、产品规格关系</div>
+          <div class="step-criteria">完成标准：已选择客户、项目、产品规格</div>
+        </div>
+        <div class="step-status-badge">当前步骤</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item blocked">
+        <div class="step-num">!</div>
+        <div class="step-info">
+          <div class="step-name">2. 设备配置</div>
+          <div class="step-purpose">配置相机、触发、采集参数</div>
+          <div class="step-criteria">阻塞：需要先选择产品规格</div>
+        </div>
+        <div class="step-status-badge">阻塞</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item blocked">
+        <div class="step-num">!</div>
+        <div class="step-info">
+          <div class="step-name">3. 现场采集</div>
+          <div class="step-purpose">采集真实 OK/NG 或待复核样本</div>
+          <div class="step-criteria">阻塞：需要先选择产品规格</div>
+        </div>
+        <div class="step-status-badge">阻塞</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item blocked">
+        <div class="step-num">!</div>
+        <div class="step-info">
+          <div class="step-name">4. 样本复核</div>
+          <div class="step-purpose">确认样本标签、缺陷类型、标注质量</div>
+        </div>
+        <div class="step-status-badge">阻塞</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending">
+        <div class="step-num">5</div>
+        <div class="step-info"><div class="step-name">5. 模型训练</div></div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item pending">
+        <div class="step-num">6</div>
+        <div class="step-info"><div class="step-name">6. 联合检测</div></div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item pending">
+        <div class="step-num">7</div>
+        <div class="step-info"><div class="step-name">7. 性能验证</div></div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item pending">
+        <div class="step-num">8</div>
+        <div class="step-info"><div class="step-name">8. 报告交付</div></div>
+        <div class="step-status-badge">待开始</div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-title">项目配置</div>
+      <div class="detail-section">
+        <h4>用途</h4>
+        <p>建立客户、项目、产品规格的从属关系。这是所有后续流程的基础，没有规格就无法配置设备和采集数据。</p>
+      </div>
+      <div class="detail-section">
+        <h4>操作步骤</h4>
+        <ol>
+          <li>确认客户已存在（若无则新建）。</li>
+          <li>确认项目已存在并关联到客户。</li>
+          <li>创建产品规格：材料、几何类型、速度范围、相机数量等。</li>
+          <li>在顶部选择器中选中客户→项目→规格。</li>
+        </ol>
+      </div>
+      <div class="detail-section">
+        <h4>完成标准</h4>
+        <p>顶部选择器中已选中客户、项目、产品规格。</p>
+      </div>
+      <div class="detail-missing">
+        <strong>缺失项：</strong>当前项目还没有产品规格。
+      </div>
+      <button class="btn-enter">进入项目配置</button>
+    </div>
+  </div>
+
+  <div class="bottom-hint">
+    <span class="hint-icon">⚠</span>
+    <div class="hint-text">
+      <span class="hint-blocker">当前阻塞：</span>当前项目还没有产品规格。
+      <span class="hint-action">推荐下一步：</span>进入项目配置，先创建产品规格。
+    </div>
+    <button class="btn-enter" style="font-size:11px; padding:6px 14px;">进入项目配置</button>
+  </div>
+</div>
+
+
+<!-- ═══ SCENARIO C: late (6/8, 联合检测 current) ═══ -->
+<div id="scenario-late" style="display:none">
+
+  <div class="overview-bar">
+    <div class="overview-item">
+      <span class="overview-label">客户</span>
+      <span class="overview-value">华东铜业</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">项目</span>
+      <span class="overview-value">铜管表面检测-一期</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">产品规格</span>
+      <span class="overview-value">Tube-25mm（铜/管）</span>
+    </div>
+    <div class="overview-divider"></div>
+    <div class="overview-item">
+      <span class="overview-label">当前阶段</span>
+      <span class="overview-value" style="color:var(--primary)">联合检测</span>
+    </div>
+    <div class="overview-progress">
+      <div class="progress-ring">6/8</div>
+      <span class="progress-label">完成度</span>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="step-list">
+
+      <div class="step-item done">
+        <div class="step-num">✓</div>
+        <div class="step-info"><div class="step-name">1. 项目配置</div></div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item done">
+        <div class="step-num">✓</div>
+        <div class="step-info"><div class="step-name">2. 设备配置</div></div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item done">
+        <div class="step-num">✓</div>
+        <div class="step-info"><div class="step-name">3. 现场采集</div></div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item done">
+        <div class="step-num">✓</div>
+        <div class="step-info"><div class="step-name">4. 样本复核</div></div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item done">
+        <div class="step-num">✓</div>
+        <div class="step-info"><div class="step-name">5. 模型训练</div></div>
+        <div class="step-status-badge">已完成</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item current active-step">
+        <div class="step-num">6</div>
+        <div class="step-info">
+          <div class="step-name">6. 联合检测</div>
+          <div class="step-purpose">使用模型执行现场检测或复测</div>
+        </div>
+        <div class="step-status-badge">当前步骤</div>
+        <div class="step-arrow">›</div>
+      </div>
+
+      <div class="step-item pending">
+        <div class="step-num">7</div>
+        <div class="step-info"><div class="step-name">7. 性能验证</div></div>
+        <div class="step-status-badge">待开始</div>
+        <div class="step-arrow">›</div>
+      </div>
+      <div class="step-item pending">
+        <div class="step-num">8</div>
+        <div class="step-info"><div class="step-name">8. 报告交付</div></div>
+        <div class="step-status-badge">待开始</div>
+      </div>
+    </div>
+
+    <div class="detail-panel">
+      <div class="detail-title">联合检测</div>
+      <div class="detail-section">
+        <h4>用途</h4>
+        <p>使用已训练的无监督模型和 YOLO 检测模型，对现场图像执行联合推理（hybrid retest），输出最终 NG/OK 判定。</p>
+      </div>
+      <div class="detail-section">
+        <h4>操作步骤</h4>
+        <ol>
+          <li>在生产运行页面启动检测任务。</li>
+          <li>或进入混合复测页面，对历史图像执行离线推理。</li>
+          <li>查看缺陷追溯页面，定位 NG 来源。</li>
+        </ol>
+      </div>
+      <div class="detail-section">
+        <h4>完成标准</h4>
+        <p>存在至少一条检测记录或复测记录。</p>
+      </div>
+      <button class="btn-enter">进入联合检测</button>
+    </div>
+  </div>
+
+  <div class="bottom-hint">
+    <span class="hint-icon">💡</span>
+    <div class="hint-text">
+      当前项目已有可用模型，可进入联合检测执行线上或离线推理。
+      <span class="hint-action">推荐下一步：</span>进入混合复测，运行一次离线验证。
+    </div>
+    <button class="btn-enter" style="font-size:11px; padding:6px 14px;">进入联合检测</button>
+  </div>
+</div>
+
+<p class="note">
+  视觉说明：以上为静态度示意，展示不同项目阶段下工作台的布局、状态和交互逻辑。
+  实际 PySide6 实现中，左侧步骤列表使用 QVBoxLayout + QFrame 卡片，右侧详细面板使用 QFrame 切换内容，底部提示为固定 QFrame。
+  状态颜色通过 ThemeManager palette 引用，支持浅色/深色主题切换。
+</p>
+
+<script>
+function showScenario(name) {
+  document.querySelectorAll('[id^="scenario-"]').forEach(el => el.style.display = 'none');
+  document.getElementById('scenario-' + name).style.display = 'block';
+  document.querySelectorAll('.scenario-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function selectStep(el, num, scenario) {
+  // Highlight the clicked step
+  document.querySelectorAll('#scenario-' + scenario + ' .step-item').forEach(s => s.classList.remove('active-step'));
+  el.classList.add('active-step');
+}
+</script>
+
+</body>
+</html>

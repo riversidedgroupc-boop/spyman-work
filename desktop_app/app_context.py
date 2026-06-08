@@ -1,4 +1,5 @@
 """Global application context singleton."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
@@ -15,6 +16,12 @@ class AppContext(QObject):
     spec_changed = Signal(str)
     camera_config_changed = Signal(str)
     model_changed = Signal(str)
+    navigate_to_production = Signal(str, str)  # runtime_mode_value, session_id
+    navigate_to_site_production = Signal(
+        str, str
+    )  # runtime_mode_value, session_id → site_capture production tab
+    navigate_to_page = Signal(str)  # page_id (workbench, device_setup, ...)
+    navigate_to_project_center = Signal()  # switch to project-center tab in workbench
 
     _instance: AppContext | None = None
 
@@ -101,6 +108,29 @@ class AppContext(QObject):
         self._current_customer_id = ""
         self._current_customer_name = ""
         self._clear_dependents()
+        self.customer_changed.emit("")
+
+    def clear_customer_context(self) -> None:
+        """Clear customer + all dependents, emit signals so UI resets."""
+        self._current_customer_id = ""
+        self._current_customer_name = ""
+        self._clear_dependents()
+        self.customer_changed.emit("")
+
+    def clear_project_context(self) -> None:
+        """Clear project + all dependents, emit signals so UI resets."""
+        self._current_project_id = ""
+        self._current_project_name = ""
+        self._current_spec_id = ""
+        self._current_spec_name = ""
+        self._current_camera_config_id = ""
+        self.project_changed.emit("")
+
+    def clear_spec_context(self) -> None:
+        """Clear spec context, emit signal so UI resets."""
+        self._current_spec_id = ""
+        self._current_spec_name = ""
+        self.spec_changed.emit("")
 
     def _clear_dependents(self) -> None:
         self._current_project_id = ""
